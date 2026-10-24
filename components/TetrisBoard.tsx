@@ -34,23 +34,26 @@ export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
   const [isSubmittingMatch, setIsSubmittingMatch] = useState(false);
   const matchProcessedRef = useRef(false);
 
-  // Key state tracking for smooth DAS/ARR
+  // Key state tracking for smooth DAS/ARR and soft drop timer
   const keyStateRef = useRef<{
     left: boolean;
     right: boolean;
     down: boolean;
     dasTimer: number;
     arrTimer: number;
+    softDropTimer: number;
   }>({
     left: false,
     right: false,
     down: false,
     dasTimer: 0,
     arrTimer: 0,
+    softDropTimer: 0,
   });
 
   const DAS_DELAY = 140; // ms before auto-repeat kicks in
   const ARR_RATE = 30;   // ms per repeat step
+  const SOFT_DROP_RATE = 40; // ms por drop fluido (25 steps/segundo, padrão estável e controlável)
 
   // Initialize engine
   useEffect(() => {
@@ -117,8 +120,15 @@ export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
           }
         }
       }
+      // Handle Soft Drop com timer fluido controlado (sem disparos incontroláveis de repeat de SO)
       if (ks.down) {
-        engine.softDrop();
+        ks.softDropTimer += delta;
+        if (ks.softDropTimer >= SOFT_DROP_RATE) {
+          ks.softDropTimer = 0;
+          engine.softDrop();
+        }
+      } else {
+        ks.softDropTimer = 0;
       }
 
       engine.tick(delta);
@@ -170,8 +180,11 @@ export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
 
         case 'ArrowDown':
         case 'KeyS':
-          ks.down = true;
-          engine.softDrop();
+          if (!ks.down) {
+            ks.down = true;
+            ks.softDropTimer = 0;
+            engine.softDrop(); // Drop inicial imediato
+          }
           break;
 
         case 'ArrowUp':
@@ -273,7 +286,8 @@ export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
       for (let c = 0; c < COLS; c++) {
         const cell = engine.state.matrix[r][c];
         if (cell !== 0) {
-          drawBlock(mCtx, c, r, PIECES[cell].color, false);
+          const color = cell === 'G' ? '#64748b' : PIECES[cell]?.color || '#00f2fe';
+          drawBlock(mCtx, c, r, color, false);
         }
       }
     }

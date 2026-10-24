@@ -11,8 +11,10 @@ export class TetrisEngine {
   private readonly MAX_LOCK_RESETS = 15;
   private readonly LOCK_DELAY = 500; // ms
   private startTime: number | null = null;
+  private lastMoveWasRotate = false;
   public onStateChange?: (state: TetrisState) => void;
-  public onSoundTrigger?: (sound: 'move' | 'rotate' | 'drop' | 'hold' | 'clear' | 'tetris' | 'gameover') => void;
+  public onSoundTrigger?: (sound: 'move' | 'rotate' | 'drop' | 'hold' | 'clear' | 'tetris' | 'tspin' | 'gameover') => void;
+  public onGarbageSent?: (lines: number, clearType: 'single' | 'double' | 'triple' | 'tetris' | 'combo' | 'tspin' | 'quad') => void;
 
   constructor() {
     this.state = this.getInitialState();
@@ -38,6 +40,7 @@ export class TetrisEngine {
         apm: 0,
         durationSeconds: 0,
       },
+      incomingGarbage: 0,
       isGameOver: false,
       isPaused: false,
       lastClear: null,
@@ -93,6 +96,7 @@ export class TetrisEngine {
     this.isLocking = false;
     this.lockTimer = 0;
     this.moveResets = 0;
+    this.lastMoveWasRotate = false;
 
     // Check game over on spawn
     if (this.checkCollision(newPiece.type, newPiece.rotation, newPiece.x, newPiece.y)) {
@@ -109,6 +113,29 @@ export class TetrisEngine {
     this.state.canHold = true;
     this.state.ghostY = this.computeGhostY(newPiece);
     this.notify();
+  }
+
+  // SRS 3-Corner T-Spin Detection Rule
+  private checkTSpin(piece: Piece): boolean {
+    if (piece.type !== 'T' || !this.lastMoveWasRotate) return false;
+    // Corners around T piece center (piece.x + 1, piece.y + 1)
+    const corners = [
+      [piece.x, piece.y],
+      [piece.x + 2, piece.y],
+      [piece.x, piece.y + 2],
+      [piece.x + 2, piece.y + 2],
+    ];
+
+    let occupiedCorners = 0;
+    for (const [cx, cy] of corners) {
+      if (cx < 0 || cx >= COLS || cy >= ROWS) {
+        occupiedCorners++;
+      } else if (cy >= 0 && this.state.matrix[cy][cx] !== 0) {
+        occupiedCorners++;
+      }
+    }
+
+    return occupiedCorners >= 3;
   }
 
   private checkCollision(type: PieceType, rotation: Rotation, offsetX: number, offsetY: number): boolean {
@@ -145,6 +172,7 @@ export class TetrisEngine {
     const { type, rotation, x, y } = this.state.currentPiece;
     if (!this.checkCollision(type, rotation, x - 1, y)) {
       this.state.currentPiece.x--;
+      this.lastMoveWasRotate = false;
       this.handlePieceMoved();
       this.onSoundTrigger?.('move');
       this.notify();
@@ -158,6 +186,7 @@ export class TetrisEngine {
     const { type, rotation, x, y } = this.state.currentPiece;
     if (!this.checkCollision(type, rotation, x + 1, y)) {
       this.state.currentPiece.x++;
+      this.lastMoveWasRotate = false;
       this.handlePieceMoved();
       this.onSoundTrigger?.('move');
       this.notify();
@@ -171,6 +200,7 @@ export class TetrisEngine {
     const { type, rotation, x, y } = this.state.currentPiece;
     if (!this.checkCollision(type, rotation, x, y + 1)) {
       this.state.currentPiece.y++;
+      this.lastMoveWasRotate = false;
       this.state.telemetry.score += 1;
       this.dropTimer = 0;
       this.notify();
@@ -208,6 +238,7 @@ export class TetrisEngine {
     // O-piece does not kick or rotate shape
     if (type === 'O') {
       this.state.currentPiece.rotation = nextRot;
+      this.lastMoveWasRotate = true;
       this.onSoundTrigger?.('rotate');
       this.notify();
       return true;
@@ -222,6 +253,7 @@ export class TetrisEngine {
         this.state.currentPiece.rotation = nextRot;
         this.state.currentPiece.x += dx;
         this.state.currentPiece.y -= dy;
+        this.lastMoveWasRotate = true;
         this.handlePieceMoved();
         this.onSoundTrigger?.('rotate');
         this.notify();
@@ -260,6 +292,7 @@ export class TetrisEngine {
     this.isLocking = false;
     this.lockTimer = 0;
     this.moveResets = 0;
+    this.lastMoveWasRotate = false;
     this.onSoundTrigger?.('hold');
     this.notify();
   }
@@ -292,6 +325,8 @@ export class TetrisEngine {
     const piece = this.state.currentPiece;
     if (!piece) return;
 
+    const isTSpin = this.checkTSpin(piece);
+
     const shape = PIECES[piece.type].shapes[piece.rotation];
     for (let r = 0; r < shape.length; r++) {
       for (let c = 0; c < shape[r].length; c++) {
@@ -308,54 +343,149 @@ export class TetrisEngine {
     if (!this.startTime) this.startTime = Date.now();
     this.state.telemetry.piecesPlaced++;
 
-    this.clearLines();
+    this.clearLines(isTSpin);
     this.spawnNextPiece();
   }
 
-  private clearLines() {
+  private clearLines(isTSpin: boolean = false) {
     let linesCleared = 0;
-    const newMatrix = this.state.matrix.filter(row => {
+    // Filtra apenas as linhas que NÃO estão completamente preenchidas (não nulas)
+    const preservedRows: (PieceType | 0)[][] = [];
+
+    for (let r = 0; r < ROWS; r++) {
+      const row = this.state.matrix[r];
       const isFull = row.every(cell => cell !== 0);
-      if (isFull) linesCleared++;
-      return !isFull;
-    });
-
-    while (newMatrix.length < ROWS) {
-      newMatrix.unshift(Array(COLS).fill(0));
+      if (isFull) {
+        linesCleared++;
+      } else {
+        preservedRows.push([...row]); // Clona a linha para garantir isolamento de referências
+      }
     }
-    this.state.matrix = newMatrix;
 
-    if (linesCleared > 0) {
+    // Cria novas linhas vazias e limpas no topo
+    const emptyRowsCount = ROWS - preservedRows.length;
+    const cleanEmptyRows: (PieceType | 0)[][] = Array.from({ length: emptyRowsCount }, () =>
+      Array<0>(COLS).fill(0)
+    );
+
+    this.state.matrix = [...cleanEmptyRows, ...preservedRows];
+
+    if (linesCleared > 0 || isTSpin) {
       this.state.telemetry.combo++;
       if (this.state.telemetry.combo > this.state.telemetry.maxCombo) {
         this.state.telemetry.maxCombo = this.state.telemetry.combo;
       }
 
       const level = this.state.telemetry.level;
-      const baseScores = [0, 100, 300, 500, 800];
-      const points = (baseScores[linesCleared] || 1000) * level;
-      const comboBonus = this.state.telemetry.combo > 0 ? this.state.telemetry.combo * 50 * level : 0;
+      let points = 0;
+      let clearText = '';
+      let clearType: 'single' | 'double' | 'triple' | 'tetris' | 'combo' | 'tspin' | 'quad' = 'single';
+      let attackLines = 0;
 
+      if (isTSpin) {
+        const tSpinNames = ['T-SPIN', 'T-SPIN SINGLE', 'T-SPIN DOUBLE', 'T-SPIN TRIPLE'];
+        clearText = tSpinNames[linesCleared] || 'T-SPIN!';
+        clearType = 'tspin';
+        points = (linesCleared === 0 ? 100 : linesCleared === 1 ? 800 : linesCleared === 2 ? 1200 : 1600) * level;
+        attackLines = linesCleared === 0 ? 0 : linesCleared === 1 ? 2 : linesCleared === 2 ? 4 : 6;
+        this.onSoundTrigger?.('tspin');
+      } else if (linesCleared === 4) {
+        clearText = 'QUAD!';
+        clearType = 'quad';
+        points = 800 * level;
+        attackLines = 4;
+        this.onSoundTrigger?.('tetris');
+      } else {
+        const clearNames = ['', 'SINGLE', 'DOUBLE', 'TRIPLE'];
+        clearText = clearNames[linesCleared] || `${linesCleared} LINES!`;
+        clearType = linesCleared === 3 ? 'triple' : linesCleared === 2 ? 'double' : 'single';
+        points = (linesCleared === 1 ? 100 : linesCleared === 2 ? 300 : 500) * level;
+        attackLines = linesCleared === 2 ? 1 : linesCleared === 3 ? 2 : 0;
+        this.onSoundTrigger?.('clear');
+      }
+
+      const comboBonus = this.state.telemetry.combo > 0 ? this.state.telemetry.combo * 50 * level : 0;
       this.state.telemetry.score += points + comboBonus;
       this.state.telemetry.lines += linesCleared;
       this.state.telemetry.level = Math.floor(this.state.telemetry.lines / 10) + 1;
 
-      const clearNames = ['', 'SINGLE', 'DOUBLE', 'TRIPLE', 'TETRIS!'];
-      const clearText = clearNames[linesCleared] || `${linesCleared} LINES!`;
+      if (this.state.telemetry.combo > 0) {
+        clearText += ` + ×${this.state.telemetry.combo} COMBO`;
+      }
+
       this.state.lastClear = {
         lines: linesCleared,
-        text: this.state.telemetry.combo > 0 ? `${clearText} + COMBO x${this.state.telemetry.combo}` : clearText,
+        text: clearText,
         timestamp: Date.now(),
+        isTSpin,
+        clearType,
       };
 
-      if (linesCleared === 4) {
-        this.onSoundTrigger?.('tetris');
-      } else {
-        this.onSoundTrigger?.('clear');
+      if (this.state.telemetry.combo > 1) {
+        attackLines += Math.min(4, Math.floor(this.state.telemetry.combo / 2));
+      }
+
+      if (attackLines > 0) {
+        // Garbage Blocking / Cancelling
+        if (this.state.incomingGarbage > 0) {
+          const cancelled = Math.min(this.state.incomingGarbage, attackLines);
+          this.state.incomingGarbage -= cancelled;
+          attackLines -= cancelled;
+        }
+
+        if (attackLines > 0) {
+          this.onGarbageSent?.(attackLines, clearType);
+        }
       }
     } else {
       this.state.telemetry.combo = -1;
+
+      // Se não limpou linhas nesta jogada e há lixo na fila, insere as linhas de lixo agora
+      if (this.state.incomingGarbage > 0) {
+        this.pushGarbageLines(this.state.incomingGarbage);
+        this.state.incomingGarbage = 0;
+      }
     }
+  }
+
+  /**
+   * Enfileira lixo recebido de um ataque
+   */
+  public addIncomingGarbage(lines: number) {
+    if (this.state.isGameOver) return;
+    this.state.incomingGarbage += lines;
+    this.notify();
+  }
+
+  /**
+   * Empurra as linhas de lixo (cinzas) da parte inferior da matriz com buraco aleatório alinhado
+   */
+  public pushGarbageLines(count: number) {
+    if (count <= 0 || this.state.isGameOver) return;
+    const holeCol = Math.floor(Math.random() * COLS);
+
+    for (let i = 0; i < count; i++) {
+      // Remove linha do topo
+      this.state.matrix.shift();
+      // Cria nova linha de lixo na base
+      const garbageRow: (PieceType | 0)[] = Array(COLS).fill('G');
+      garbageRow[holeCol] = 0; // O buraco para permitir que o jogador continue limpando
+      this.state.matrix.push(garbageRow);
+    }
+
+    // Recalcula fantasma
+    if (this.state.currentPiece) {
+      // Se a peça colidir devido ao lixo empurrado, sobe a peça ou encerra o jogo
+      if (this.checkCollision(this.state.currentPiece.type, this.state.currentPiece.rotation, this.state.currentPiece.x, this.state.currentPiece.y)) {
+        this.state.currentPiece.y = Math.max(0, this.state.currentPiece.y - count);
+        if (this.checkCollision(this.state.currentPiece.type, this.state.currentPiece.rotation, this.state.currentPiece.x, this.state.currentPiece.y)) {
+          this.state.isGameOver = true;
+          this.onSoundTrigger?.('gameover');
+        }
+      }
+      this.state.ghostY = this.computeGhostY(this.state.currentPiece);
+    }
+    this.notify();
   }
 
   // 60 FPS Engine Tick

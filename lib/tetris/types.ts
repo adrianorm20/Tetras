@@ -1,4 +1,4 @@
-export type PieceType = 'I' | 'J' | 'L' | 'O' | 'S' | 'T' | 'Z';
+export type PieceType = 'I' | 'J' | 'L' | 'O' | 'S' | 'T' | 'Z' | 'G';
 
 export type Rotation = 0 | 1 | 2 | 3;
 
@@ -35,11 +35,14 @@ export interface TetrisState {
   canHold: boolean;
   nextQueue: PieceType[];
   telemetry: GameTelemetry;
+  incomingGarbage: number; // Linhas de lixo aguardando para subir
   isGameOver: boolean;
   isPaused: boolean;
   lastClear: {
     lines: number;
     text: string;
     timestamp: number;
+    isTSpin?: boolean;
+    clearType?: 'single' | 'double' | 'triple' | 'tetris' | 'combo' | 'tspin' | 'quad';
   } | null;
 }

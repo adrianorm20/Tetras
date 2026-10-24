@@ -61,6 +61,24 @@ export class AudioPlayer {
     });
   }
 
+  public playTSpin() {
+    [392, 523.25, 659.25, 880].forEach((f, idx) => {
+      setTimeout(() => this.playTone(f, 'triangle', 0.14, 0.22), idx * 60);
+    });
+  }
+
+  public playAttack() {
+    [600, 450, 750].forEach((f, idx) => {
+      setTimeout(() => this.playTone(f, 'sawtooth', 0.08, 0.18), idx * 50);
+    });
+  }
+
+  public playKO() {
+    [150, 100, 60].forEach((f, idx) => {
+      setTimeout(() => this.playTone(f, 'sawtooth', 0.25, 0.3), idx * 80);
+    });
+  }
+
   public playGameOver() {
     [400, 350, 300, 240].forEach((f, idx) => {
       setTimeout(() => this.playTone(f, 'sawtooth', 0.2, 0.2), idx * 90);

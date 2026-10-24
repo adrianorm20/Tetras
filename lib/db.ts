@@ -65,77 +65,184 @@ export function getLevelFromXp(xp: number): { level: number; currentLevelXp: num
   };
 }
 
+let isDbInitialized = false;
+let initDbPromise: Promise<void> | null = null;
+
 /**
- * Inicialização / Migração do esquema SQL no Neon
+ * Inicialização / Migração do esquema SQL no Neon (Executado apenas uma vez de forma segura / idempotente)
  */
-export async function initDatabase() {
-  await sqlDirect`
-    CREATE TABLE IF NOT EXISTS players (
-      id SERIAL PRIMARY KEY,
-      username VARCHAR(50) UNIQUE NOT NULL,
-      email VARCHAR(100),
-      xp INTEGER NOT NULL DEFAULT 0,
-      level INTEGER NOT NULL DEFAULT 1,
-      matches_played INTEGER NOT NULL DEFAULT 0,
-      wins INTEGER NOT NULL DEFAULT 0,
-      high_score INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    );
+export async function initDatabase(): Promise<void> {
+  if (isDbInitialized) return;
+  if (initDbPromise) return initDbPromise;
+
+  initDbPromise = (async () => {
+    try {
+      await sqlDirect`
+        CREATE TABLE IF NOT EXISTS players (
+          id SERIAL PRIMARY KEY,
+          username VARCHAR(50) UNIQUE NOT NULL,
+          email VARCHAR(100),
+          xp INTEGER NOT NULL DEFAULT 0,
+          level INTEGER NOT NULL DEFAULT 1,
+          matches_played INTEGER NOT NULL DEFAULT 0,
+          wins INTEGER NOT NULL DEFAULT 0,
+          high_score INTEGER NOT NULL DEFAULT 0,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+      `;
+
+      // Índices otimizados para busca de ranking em alto volume de consultas serverless
+      await sqlDirect`
+        CREATE INDEX IF NOT EXISTS idx_players_high_score ON players (high_score DESC);
+      `;
+      await sqlDirect`
+        CREATE INDEX IF NOT EXISTS idx_players_level_xp ON players (level DESC, xp DESC);
+      `;
+
+      // Popula dados de seed iniciais se a tabela for nova
+      const existing = await sql`SELECT COUNT(*) as count FROM players;`;
+      const count = parseInt(String((existing[0] as { count: string })?.count || '0'), 10);
+
+      if (count <= 2) {
+        await sql`
+          INSERT INTO players (username, email, xp, level, matches_played, wins, high_score)
+          VALUES 
+            ('Adriano', 'adriano@tetrio.local', 4190, 11, 6, 3, 165000),
+            ('Kazuya_SRS', 'kazuya@tetrio.local', 18900, 24, 62, 45, 345000),
+            ('Dren_99', 'dren@tetrio.local', 14200, 21, 48, 30, 298000),
+            ('HyperSpeed', 'hyper@tetrio.local', 11500, 19, 39, 21, 280000),
+            ('MatrixQueen', 'queen@tetrio.local', 9200, 16, 34, 18, 242000),
+            ('TetrisBot_V2', 'bot@tetrio.local', 7800, 15, 29, 12, 215000),
+            ('NeonFlick', 'neonflick@tetrio.local', 6400, 13, 24, 10, 198000),
+            ('CyberDrop', 'cyber@tetrio.local', 5100, 12, 19, 7, 182000),
+            ('SpinMaster_T', 'spin@tetrio.local', 3800, 10, 15, 6, 154000),
+            ('BlockBuster', 'block@tetrio.local', 2900, 8, 12, 4, 138000),
+            ('ZeroGravity', 'zero@tetrio.local', 2100, 6, 9, 2, 112000)
+          ON CONFLICT (username) DO NOTHING;
+        `;
+      }
+
+      isDbInitialized = true;
+    } catch (err) {
+      console.error('[Neon DB] Erro durante initDatabase:', err);
+      throw err;
+    } finally {
+      initDbPromise = null;
+    }
+  })();
+
+  return initDbPromise;
+}
+
+export interface MatchUpdateInput {
+  username: string;
+  score: number;
+  earnedXp: number;
+  won: boolean;
+}
+
+export interface MatchUpdateResult {
+  player: PlayerProfile;
+  progress: ReturnType<typeof getLevelFromXp>;
+  didLevelUp: boolean;
+  isNewHighScore: boolean;
+}
+
+/**
+ * Operação transacional de atualização de progresso de partida no Neon com tipagem estrita
+ */
+export async function updatePlayerMatchProgress(input: MatchUpdateInput): Promise<MatchUpdateResult> {
+  const username = input.username.trim();
+  const score = Math.max(0, input.score);
+  const earnedXp = Math.max(0, input.earnedXp);
+  const won = !!input.won;
+
+  // 1. Busca jogador atual ou cria caso seja nova conta
+  let rows = await sql`
+    SELECT id, username, email, xp, level, matches_played, wins, high_score, created_at, updated_at
+    FROM players 
+    WHERE username = ${username}
+    LIMIT 1;
   `;
 
-  // Adiciona índices otimizados para busca de ranking se não existirem
-  await sqlDirect`
-    CREATE INDEX IF NOT EXISTS idx_players_high_score ON players (high_score DESC);
-  `;
-  await sqlDirect`
-    CREATE INDEX IF NOT EXISTS idx_players_level_xp ON players (level DESC, xp DESC);
-  `;
-
-  // Cria usuários iniciais para enriquecer o Leaderboard competitivo estilo Tetr.io
-  const existing = await sql`SELECT COUNT(*) as count FROM players;`;
-  if (parseInt((existing[0] as { count: string }).count, 10) <= 2) {
+  if (rows.length === 0) {
     await sql`
       INSERT INTO players (username, email, xp, level, matches_played, wins, high_score)
-      VALUES 
-        ('Adriano', 'adriano@tetrio.local', 4190, 11, 6, 3, 165000),
-        ('Kazuya_SRS', 'kazuya@tetrio.local', 18900, 24, 62, 45, 345000),
-        ('Dren_99', 'dren@tetrio.local', 14200, 21, 48, 30, 298000),
-        ('HyperSpeed', 'hyper@tetrio.local', 11500, 19, 39, 21, 280000),
-        ('MatrixQueen', 'queen@tetrio.local', 9200, 16, 34, 18, 242000),
-        ('TetrisBot_V2', 'bot@tetrio.local', 7800, 15, 29, 12, 215000),
-        ('NeonFlick', 'neonflick@tetrio.local', 6400, 13, 24, 10, 198000),
-        ('CyberDrop', 'cyber@tetrio.local', 5100, 12, 19, 7, 182000),
-        ('SpinMaster_T', 'spin@tetrio.local', 3800, 10, 15, 6, 154000),
-        ('BlockBuster', 'block@tetrio.local', 2900, 8, 12, 4, 138000),
-        ('ZeroGravity', 'zero@tetrio.local', 2100, 6, 9, 2, 112000)
+      VALUES (${username}, ${`${username.toLowerCase()}@tetrio.local`}, 0, 1, 0, 0, 0)
       ON CONFLICT (username) DO NOTHING;
     `;
+    rows = await sql`
+      SELECT id, username, email, xp, level, matches_played, wins, high_score, created_at, updated_at
+      FROM players 
+      WHERE username = ${username}
+      LIMIT 1;
+    `;
   }
+
+  const current = rows[0] as unknown as PlayerProfile;
+  const newTotalXp = current.xp + earnedXp;
+  const newProgress = getLevelFromXp(newTotalXp);
+  const isNewHighScore = score > current.high_score;
+  const updatedHighScore = Math.max(current.high_score, score);
+  const didLevelUp = newProgress.level > current.level;
+
+  // 2. Atualização atômica
+  const updatedRows = await sql`
+    UPDATE players
+    SET 
+      xp = ${newTotalXp},
+      level = ${newProgress.level},
+      matches_played = matches_played + 1,
+      wins = wins + ${won ? 1 : 0},
+      high_score = ${updatedHighScore},
+      updated_at = NOW()
+    WHERE username = ${username}
+    RETURNING id, username, email, xp, level, matches_played, wins, high_score, created_at, updated_at;
+  `;
+
+  const updatedPlayer = updatedRows[0] as unknown as PlayerProfile;
+
+  return {
+    player: updatedPlayer,
+    progress: newProgress,
+    didLevelUp,
+    isNewHighScore,
+  };
 }
 
 /**
  * Consulta otimizada: Top 10 Maiores High Scores
  */
 export async function getTopHighScores(limit = 10): Promise<PlayerProfile[]> {
-  const rows = await sql`
-    SELECT id, username, email, xp, level, matches_played, wins, high_score, created_at, updated_at
-    FROM players
-    ORDER BY high_score DESC, updated_at ASC
-    LIMIT ${limit};
-  `;
-  return rows as unknown as PlayerProfile[];
+  try {
+    const rows = await sql`
+      SELECT id, username, email, xp, level, matches_played, wins, high_score, created_at, updated_at
+      FROM players
+      ORDER BY high_score DESC, updated_at ASC
+      LIMIT ${limit};
+    `;
+    return rows as unknown as PlayerProfile[];
+  } catch (err) {
+    console.error('[Neon DB] Erro em getTopHighScores:', err);
+    throw err;
+  }
 }
 
 /**
  * Consulta otimizada: Top 10 Maiores Níveis de Conta (desempate por XP)
  */
 export async function getTopAccountLevels(limit = 10): Promise<PlayerProfile[]> {
-  const rows = await sql`
-    SELECT id, username, email, xp, level, matches_played, wins, high_score, created_at, updated_at
-    FROM players
-    ORDER BY level DESC, xp DESC, updated_at ASC
-    LIMIT ${limit};
-  `;
-  return rows as unknown as PlayerProfile[];
+  try {
+    const rows = await sql`
+      SELECT id, username, email, xp, level, matches_played, wins, high_score, created_at, updated_at
+      FROM players
+      ORDER BY level DESC, xp DESC, updated_at ASC
+      LIMIT ${limit};
+    `;
+    return rows as unknown as PlayerProfile[];
+  } catch (err) {
+    console.error('[Neon DB] Erro em getTopAccountLevels:', err);
+    throw err;
+  }
 }

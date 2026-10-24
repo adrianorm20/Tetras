@@ -77,6 +77,13 @@ export const PIECES: Record<PieceType, PieceDefinition> = {
       [[0,0,0], [1,1,0], [0,1,1]],
       [[0,1,0], [1,1,0], [1,0,0]],
     ]
+  },
+  G: {
+    color: '#64748b',
+    glow: 'rgba(100, 116, 139, 0.4)',
+    shapes: [
+      [[1]]
+    ]
   }
 };
 
