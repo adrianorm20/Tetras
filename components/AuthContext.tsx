@@ -34,13 +34,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setPlayer(data.player);
         setProgress(data.progress);
       } else {
-        // Fallback: carrega perfil público Adriano padrão se nenhum logado ainda
-        const fallbackRes = await fetch('/api/player?username=Adriano');
-        const fallbackData = await fallbackRes.json();
-        if (fallbackData.success && fallbackData.player) {
-          setPlayer(fallbackData.player);
-          setProgress(fallbackData.progress);
-        }
+        // Se não estiver logado, permanece como Visitante (Guest)
+        setPlayer(null);
+        setProgress(null);
       }
     } catch (err) {
       console.error('Falha ao autenticar sessão:', err);

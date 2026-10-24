@@ -153,28 +153,7 @@ export async function initDatabase(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_rooms_public ON rooms (is_public, status);
       `;
 
-      // Popula dados de seed iniciais se a tabela for nova
-      const existing = await sql`SELECT COUNT(*) as count FROM players;`;
-      const count = parseInt(String((existing[0] as { count: string })?.count || '0'), 10);
-
-      if (count <= 2) {
-        await sql`
-          INSERT INTO players (username, email, xp, level, matches_played, wins, high_score)
-          VALUES 
-            ('Adriano', 'adriano@tetrio.local', 4190, 11, 6, 3, 165000),
-            ('Kazuya_SRS', 'kazuya@tetrio.local', 18900, 24, 62, 45, 345000),
-            ('Dren_99', 'dren@tetrio.local', 14200, 21, 48, 30, 298000),
-            ('HyperSpeed', 'hyper@tetrio.local', 11500, 19, 39, 21, 280000),
-            ('MatrixQueen', 'queen@tetrio.local', 9200, 16, 34, 18, 242000),
-            ('TetrisBot_V2', 'bot@tetrio.local', 7800, 15, 29, 12, 215000),
-            ('NeonFlick', 'neonflick@tetrio.local', 6400, 13, 24, 10, 198000),
-            ('CyberDrop', 'cyber@tetrio.local', 5100, 12, 19, 7, 182000),
-            ('SpinMaster_T', 'spin@tetrio.local', 3800, 10, 15, 6, 154000),
-            ('BlockBuster', 'block@tetrio.local', 2900, 8, 12, 4, 138000),
-            ('ZeroGravity', 'zero@tetrio.local', 2100, 6, 9, 2, 112000)
-          ON CONFLICT (username) DO NOTHING;
-        `;
-      }
+      // Sem seed automático: cada jogador deve criar a sua própria conta
 
       isDbInitialized = true;
     } catch (err) {
