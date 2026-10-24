@@ -84,13 +84,58 @@ export async function initDatabase() {
     );
   `;
 
-  // Cria um usuário padrão para a sessão local caso não exista nenhum
-  const existing = await sql`SELECT COUNT(*) as count FROM players WHERE username = 'Adriano';`;
-  if (parseInt((existing[0] as { count: string }).count, 10) === 0) {
+  // Adiciona índices otimizados para busca de ranking se não existirem
+  await sqlDirect`
+    CREATE INDEX IF NOT EXISTS idx_players_high_score ON players (high_score DESC);
+  `;
+  await sqlDirect`
+    CREATE INDEX IF NOT EXISTS idx_players_level_xp ON players (level DESC, xp DESC);
+  `;
+
+  // Cria usuários iniciais para enriquecer o Leaderboard competitivo estilo Tetr.io
+  const existing = await sql`SELECT COUNT(*) as count FROM players;`;
+  if (parseInt((existing[0] as { count: string }).count, 10) <= 2) {
     await sql`
       INSERT INTO players (username, email, xp, level, matches_played, wins, high_score)
-      VALUES ('Adriano', 'adriano@tetrio.local', 350, 2, 5, 2, 125000)
+      VALUES 
+        ('Adriano', 'adriano@tetrio.local', 4190, 11, 6, 3, 165000),
+        ('Kazuya_SRS', 'kazuya@tetrio.local', 18900, 24, 62, 45, 345000),
+        ('Dren_99', 'dren@tetrio.local', 14200, 21, 48, 30, 298000),
+        ('HyperSpeed', 'hyper@tetrio.local', 11500, 19, 39, 21, 280000),
+        ('MatrixQueen', 'queen@tetrio.local', 9200, 16, 34, 18, 242000),
+        ('TetrisBot_V2', 'bot@tetrio.local', 7800, 15, 29, 12, 215000),
+        ('NeonFlick', 'neonflick@tetrio.local', 6400, 13, 24, 10, 198000),
+        ('CyberDrop', 'cyber@tetrio.local', 5100, 12, 19, 7, 182000),
+        ('SpinMaster_T', 'spin@tetrio.local', 3800, 10, 15, 6, 154000),
+        ('BlockBuster', 'block@tetrio.local', 2900, 8, 12, 4, 138000),
+        ('ZeroGravity', 'zero@tetrio.local', 2100, 6, 9, 2, 112000)
       ON CONFLICT (username) DO NOTHING;
     `;
   }
+}
+
+/**
+ * Consulta otimizada: Top 10 Maiores High Scores
+ */
+export async function getTopHighScores(limit = 10): Promise<PlayerProfile[]> {
+  const rows = await sql`
+    SELECT id, username, email, xp, level, matches_played, wins, high_score, created_at, updated_at
+    FROM players
+    ORDER BY high_score DESC, updated_at ASC
+    LIMIT ${limit};
+  `;
+  return rows as unknown as PlayerProfile[];
+}
+
+/**
+ * Consulta otimizada: Top 10 Maiores Níveis de Conta (desempate por XP)
+ */
+export async function getTopAccountLevels(limit = 10): Promise<PlayerProfile[]> {
+  const rows = await sql`
+    SELECT id, username, email, xp, level, matches_played, wins, high_score, created_at, updated_at
+    FROM players
+    ORDER BY level DESC, xp DESC, updated_at ASC
+    LIMIT ${limit};
+  `;
+  return rows as unknown as PlayerProfile[];
 }

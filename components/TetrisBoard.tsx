@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { TetrisEngine } from '@/lib/tetris/engine';
 import { TetrisState, PieceType } from '@/lib/tetris/types';
 import { COLS, ROWS, PIECES } from '@/lib/tetris/constants';
 import { audio } from '@/components/AudioPlayer';
-import { Volume2, VolumeX, RotateCcw, Pause, Play, Sparkles } from 'lucide-react';
+import { Volume2, VolumeX, RotateCcw, Pause, Play, Sparkles, Trophy } from 'lucide-react';
 
 const BLOCK_SIZE = 30; // 300 x 600 main canvas
 const MINI_BLOCK_SIZE = 20;
@@ -416,6 +417,14 @@ export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          <Link
+            href="/leaderboard"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-gradient-to-r from-amber-500/20 to-pink-500/20 hover:from-amber-500/30 hover:to-pink-500/30 text-amber-300 border border-amber-500/40 transition shadow-[0_0_10px_rgba(255,214,10,0.2)]"
+            title="Ver Placar Global"
+          >
+            <Trophy size={14} className="text-amber-400" />
+            <span>Leaderboard</span>
+          </Link>
           <button
             onClick={toggleSound}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700 transition"
