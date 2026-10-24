@@ -4,10 +4,12 @@ import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Trophy, Award, ArrowLeft, RefreshCw, Zap, Flame, User, Gamepad2, Shield } from 'lucide-react';
 import { PlayerProfile } from '@/lib/db';
+import { useAuth } from '@/components/AuthContext';
 
 type TabType = 'scores' | 'levels';
 
 export default function LeaderboardView() {
+  const { player: currentPlayer } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('scores');
   const [topScores, setTopScores] = useState<PlayerProfile[]>([]);
   const [topLevels, setTopLevels] = useState<PlayerProfile[]>([]);
@@ -214,13 +216,13 @@ export default function LeaderboardView() {
                   const isTop1 = idx === 0;
                   const isTop2 = idx === 1;
                   const isTop3 = idx === 2;
-                  const isAdriano = player.username.toLowerCase() === 'adriano';
+                  const isMe = currentPlayer?.username?.toLowerCase() === player.username.toLowerCase();
 
                   return (
                     <tr
                       key={player.id}
                       className={`hover:bg-slate-800/40 transition-colors ${
-                        isAdriano ? 'bg-cyan-950/30 border-l-4 border-l-cyan-400' : ''
+                        isMe ? 'bg-cyan-950/30 border-l-4 border-l-cyan-400' : ''
                       }`}
                     >
                       <td className="py-3.5 px-4 text-center font-bold">
@@ -247,10 +249,10 @@ export default function LeaderboardView() {
                             <User size={13} />
                           </div>
                           <div>
-                            <span className={`font-bold text-sm ${isAdriano ? 'text-cyan-300' : 'text-slate-100'}`}>
+                            <span className={`font-bold text-sm ${isMe ? 'text-cyan-300' : 'text-slate-100'}`}>
                               {player.username}
                             </span>
-                            {isAdriano && (
+                            {isMe && (
                               <span className="ml-2 text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-mono">
                                 VOCÊ
                               </span>
