@@ -50,8 +50,12 @@ export function useMultiplayer(): UseMultiplayerReturn {
   const [currentTargetId, setCurrentTargetId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Use dynamic origin so it works on localhost:3000, :3001, and Vercel/production
-    const serverUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+    // Permite apontar para servidor dedicado (Render, Railway, etc.) ou fallback dinâmico
+    const remoteUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+    const serverUrl = remoteUrl && remoteUrl.trim().length > 0
+      ? remoteUrl.trim()
+      : (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+
     const socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       autoConnect: false,
