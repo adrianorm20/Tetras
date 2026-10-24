@@ -1,23 +1,28 @@
 import { neon, NeonQueryFunction } from '@neondatabase/serverless';
 
-const DATABASE_URL = process.env.DATABASE_URL;
-const DATABASE_URL_UNPOOLED = process.env.DATABASE_URL_UNPOOLED || DATABASE_URL;
-
-if (!DATABASE_URL) {
-  console.warn('[Neon DB] Warning: DATABASE_URL is not set.');
+function getDatabaseUrl(): string {
+  const url = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL_UNPOOLED;
+  if (!url) {
+    throw new Error('DATABASE_URL is not set');
+  }
+  return url;
 }
 
-// Client para queries normais (pooled via PgBouncer)
-export const sql: NeonQueryFunction<false, false> = DATABASE_URL
-  ? neon(DATABASE_URL)
-  : (() => {
-      throw new Error('DATABASE_URL is not set');
-    }) as unknown as NeonQueryFunction<false, false>;
+function getDatabaseUrlUnpooled(): string {
+  return process.env.DATABASE_URL_UNPOOLED || getDatabaseUrl();
+}
 
-// Client direto para DDL/migrações
-export const sqlDirect: NeonQueryFunction<false, false> = DATABASE_URL_UNPOOLED
-  ? neon(DATABASE_URL_UNPOOLED)
-  : sql;
+// Client para queries normais (pooled via PgBouncer) com lazy evaluation
+export const sql: NeonQueryFunction<false, false> = ((strings: TemplateStringsArray, ...values: unknown[]) => {
+  const client = neon(getDatabaseUrl());
+  return client(strings, ...values);
+}) as unknown as NeonQueryFunction<false, false>;
+
+// Client direto para DDL/migrações com lazy evaluation
+export const sqlDirect: NeonQueryFunction<false, false> = ((strings: TemplateStringsArray, ...values: unknown[]) => {
+  const client = neon(getDatabaseUrlUnpooled());
+  return client(strings, ...values);
+}) as unknown as NeonQueryFunction<false, false>;
 
 export interface PlayerProfile {
   id: number;
