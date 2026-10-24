@@ -4,22 +4,30 @@
   "description": "Competitive modern Tetris game powered by Neon Serverless Postgres",
   "main": "src/server.js",
   "scripts": {
-    "build": "node scripts/build.js",
-    "start": "node src/server.js",
-    "dev": "node src/server.js",
-    "test": "node scripts/test-e2e.js"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
   },
   "dependencies": {
     "@neon/config": "^1.9.3",
     "@neon/env": "^1.6.4",
     "@neondatabase/serverless": "^1.2.0",
+    "autoprefixer": "^10.6.1",
     "cors": "^2.8.6",
     "dotenv": "^18.0.9",
-    "express": "^5.3.0"
+    "express": "^5.3.0",
+    "lucide-react": "^1.61.0",
+    "next": "^16.4.3",
+    "postcss": "^8.5.31",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.5",
+    "@types/react": "19.3.0",
     "typescript": "^7.0.2"
   }
 }
