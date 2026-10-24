@@ -10,7 +10,17 @@ import { Volume2, VolumeX, RotateCcw, Pause, Play, Sparkles } from 'lucide-react
 const BLOCK_SIZE = 30; // 300 x 600 main canvas
 const MINI_BLOCK_SIZE = 20;
 
-export default function TetrisBoard() {
+interface MatchEndResult {
+  earnedXp: number;
+  didLevelUp: boolean;
+  isNewHighScore: boolean;
+}
+
+interface TetrisBoardProps {
+  onMatchEnd?: (result: { score: number; lines: number; won?: boolean }) => Promise<MatchEndResult | null | undefined>;
+}
+
+export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
   const matrixCanvasRef = useRef<HTMLCanvasElement>(null);
   const holdCanvasRef = useRef<HTMLCanvasElement>(null);
   const nextCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -19,6 +29,9 @@ export default function TetrisBoard() {
   const [gameState, setGameState] = useState<TetrisState | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [actionText, setActionText] = useState<string | null>(null);
+  const [matchResult, setMatchResult] = useState<MatchEndResult | null>(null);
+  const [isSubmittingMatch, setIsSubmittingMatch] = useState(false);
+  const matchProcessedRef = useRef(false);
 
   // Key state tracking for smooth DAS/ARR
   const keyStateRef = useRef<{
@@ -48,6 +61,22 @@ export default function TetrisBoard() {
       if (state.lastClear && Date.now() - state.lastClear.timestamp < 100) {
         setActionText(state.lastClear.text);
         setTimeout(() => setActionText(null), 1200);
+      }
+
+      if (state.isGameOver && !matchProcessedRef.current && onMatchEnd) {
+        matchProcessedRef.current = true;
+        setIsSubmittingMatch(true);
+        onMatchEnd({
+          score: state.telemetry.score,
+          lines: state.telemetry.lines,
+          won: false,
+        })
+          .then((res) => {
+            if (res) setMatchResult(res);
+          })
+          .finally(() => {
+            setIsSubmittingMatch(false);
+          });
       }
     };
 
@@ -359,6 +388,8 @@ export default function TetrisBoard() {
   };
 
   const handleRestart = () => {
+    matchProcessedRef.current = false;
+    setMatchResult(null);
     engineRef.current?.init();
   };
 
@@ -380,7 +411,7 @@ export default function TetrisBoard() {
             <h1 className="text-xl font-black tracking-wider text-white">
               TETR.IO <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-pink-500">ADRIANO</span>
             </h1>
-            <p className="text-[10px] tracking-widest font-mono text-slate-400">NEXT.JS 60 FPS ENGINE // ETAPA 1</p>
+            <p className="text-[10px] tracking-widest font-mono text-slate-400">NEXT.JS 60 FPS + NEON POSTGRES // ETAPA 2</p>
           </div>
         </div>
 
@@ -507,7 +538,7 @@ export default function TetrisBoard() {
                 <h2 className="text-3xl font-black text-rose-500 tracking-wider mb-1">GAME OVER</h2>
                 <p className="text-xs text-slate-400 font-mono mb-4">A matriz foi bloqueada!</p>
 
-                <div className="grid grid-cols-2 gap-3 w-full max-w-[240px] mb-6">
+                <div className="grid grid-cols-2 gap-3 w-full max-w-[240px] mb-4">
                   <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
                     <span className="text-[10px] text-slate-500 font-mono block">PONTOS</span>
                     <span className="text-lg font-black text-cyan-400 font-mono">
@@ -520,6 +551,34 @@ export default function TetrisBoard() {
                       {telemetry?.lines || 0}
                     </span>
                   </div>
+                </div>
+
+                {/* Sincronização e Recompensas Neon Database */}
+                <div className="w-full max-w-[240px] mb-5 bg-slate-900/90 border border-slate-800 p-2.5 rounded-xl text-xs font-mono">
+                  {isSubmittingMatch ? (
+                    <div className="flex items-center justify-center gap-1.5 text-cyan-400">
+                      <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                      <span>Salvando no Neon DB...</span>
+                    </div>
+                  ) : matchResult ? (
+                    <div className="flex flex-col gap-1 text-center">
+                      <div className="text-emerald-400 font-bold flex items-center justify-center gap-1">
+                        <span>+ {matchResult.earnedXp} XP GANHO!</span>
+                      </div>
+                      {matchResult.didLevelUp && (
+                        <div className="text-fuchsia-400 font-black animate-pulse">
+                          🎉 SUBIU DE NÍVEL!
+                        </div>
+                      )}
+                      {matchResult.isNewHighScore && (
+                        <div className="text-amber-400 font-black">
+                          🏆 NOVO RECORD (HIGH SCORE)!
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-slate-400 text-[11px]">Sincronizado com Neon Database</div>
+                  )}
                 </div>
 
                 <button
