@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TETR.IO Adriano // Powered by Neon Postgres</title>
+  <meta name="description" content="Competitive web-based modern Tetris engine powered by Neon Serverless Postgres with real-time leaderboards and telemetry.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Outfit:wght@400;600;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="background-grid"></div>
+  <div class="ambient-glow cyan"></div>
+  <div class="ambient-glow magenta"></div>
+
+  <div class="app-container">
+    <!-- Top Navigation Header -->
+    <header class="top-nav">
+      <div class="brand">
+        <div class="brand-logo">T</div>
+        <div class="brand-text">
+          <h1>TETR.IO <span class="highlight">ADRIANO</span></h1>
+          <span class="sub-brand">COMPETITIVE MODERN TETRIS</span>
+        </div>
+      </div>
+
+      <div class="nav-badges">
+        <div class="neon-db-badge" id="dbStatusBadge" title="Click to view database diagnostics">
+          <span class="pulse-dot"></span>
+          <span class="db-label">Neon Postgres:</span>
+          <span class="db-status-text" id="dbStatusText">Connecting...</span>
+          <span class="db-branch-pill" id="dbBranchPill">production</span>
+          <span class="db-ping" id="dbPingText">-- ms</span>
+        </div>
+
+        <div class="header-actions">
+          <button class="nav-btn" id="btnOpenLeaderboard" title="View Neon Database Leaderboard">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-2"/><rect x="6" y="3" width="12" height="18" rx="2"/></svg>
+            Leaderboard
+          </button>
+          <button class="nav-btn" id="btnOpenHealth" title="Neon Database Health & Diagnostics">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            DB Diagnostics
+          </button>
+          <button class="nav-btn icon-only" id="btnToggleSound" title="Toggle SFX">
+            <svg id="iconSoundOn" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            <svg id="iconSoundOff" class="hidden" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Game Viewport -->
+    <main class="game-viewport">
+      <!-- Left Column: Hold & Telemetry -->
+      <aside class="side-panel left-panel">
+        <div class="panel-box hold-box">
+          <div class="box-title">HOLD <span class="shortcut">[C / Shift]</span></div>
+          <div class="canvas-wrapper">
+            <canvas id="holdCanvas" width="120" height="96"></canvas>
+          </div>
+        </div>
+
+        <div class="panel-box stats-box">
+          <div class="box-title">TELEMETRY</div>
+          
+          <div class="stat-group">
+            <span class="stat-label">SCORE</span>
+            <span class="stat-value neon-cyan" id="scoreDisplay">0</span>
+          </div>
+
+          <div class="stat-group">
+            <span class="stat-label">LEVEL</span>
+            <span class="stat-value neon-purple" id="levelDisplay">1</span>
+          </div>
+
+          <div class="stat-group">
+            <span class="stat-label">LINES</span>
+            <span class="stat-value neon-gold" id="linesDisplay">0</span>
+          </div>
+
+          <div class="stat-row">
+            <div class="stat-micro">
+              <span class="stat-label">PPS</span>
+              <span class="stat-subval" id="ppsDisplay">0.00</span>
+            </div>
+            <div class="stat-micro">
+              <span class="stat-label">APM</span>
+              <span class="stat-subval" id="apmDisplay">0.0</span>
+            </div>
+          </div>
+
+          <div class="stat-group" id="comboGroup" style="display: none;">
+            <span class="stat-label combo-label">COMBO</span>
+            <span class="stat-value neon-pink" id="comboDisplay">0</span>
+          </div>
+
+          <div class="stat-group" id="b2bGroup" style="display: none;">
+            <span class="b2b-badge">BACK-TO-BACK</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center Column: Tetris Matrix Arena -->
+      <section class="arena-center">
+        <div class="matrix-frame">
+          <canvas id="matrixCanvas" width="300" height="600"></canvas>
+          
+          <!-- Floating In-game Alert Banner -->
+          <div id="actionBanner" class="action-banner"></div>
+
+          <!-- Pause Overlay -->
+          <div id="pauseOverlay" class="matrix-overlay hidden">
+            <div class="overlay-card">
+              <h2>PAUSED</h2>
+              <p>Press <kbd>P</kbd> or <kbd>Esc</kbd> to resume</p>
+              <button class="primary-btn" id="btnResume">Resume Game</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Next Queue & Database High Score -->
+      <aside class="side-panel right-panel">
+        <div class="panel-box next-box">
+          <div class="box-title">NEXT QUEUE</div>
+          <div class="canvas-wrapper">
+            <canvas id="nextCanvas" width="120" height="360"></canvas>
+          </div>
+        </div>
+
+        <div class="panel-box db-record-box">
+          <div class="box-title">NEON #1 RECORD</div>
+          <div class="record-player" id="recordPlayer">Adriano</div>
+          <div class="record-score neon-gold" id="recordScore">245,000</div>
+          <div class="record-meta" id="recordMeta">Neon Postgres // Live</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Controls Legend Bar -->
+    <footer class="controls-bar">
+      <div class="control-item"><kbd>&larr;</kbd><kbd>&rarr;</kbd> Move</div>
+      <div class="control-item"><kbd>&uarr;</kbd> Rotate CW</div>
+      <div class="control-item"><kbd>Z</kbd> Rotate CCW</div>
+      <div class="control-item"><kbd>&darr;</kbd> Soft Drop</div>
+      <div class="control-item"><kbd>Space</kbd> Hard Drop</div>
+      <div class="control-item"><kbd>C</kbd> Hold</div>
+      <div class="control-item"><kbd>P</kbd> Pause</div>
+      <div class="control-item"><kbd>R</kbd> Restart</div>
+    </footer>
+  </div>
+
+  <!-- Leaderboard Modal -->
+  <div class="modal-backdrop hidden" id="leaderboardModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2>NEON DATABASE LEADERBOARD</h2>
+          <span class="modal-subtitle">Live records synced with Neon Postgres production branch</span>
+        </div>
+        <button class="modal-close" id="btnCloseLeaderboard">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="table-container">
+          <table class="db-table">
+            <thead>
+              <tr>
+                <th>RANK</th>
+                <th>PLAYER</th>
+                <th>SCORE</th>
+                <th>LINES</th>
+                <th>LVL</th>
+                <th>PPS</th>
+                <th>DATE</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboardTableBody">
+              <tr>
+                <td colspan="7" class="loading-cell">Loading leaderboard from Neon Postgres...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary-btn" id="btnRefreshLeaderboard">Refresh Data</button>
+        <button class="primary-btn" id="btnCloseLeaderboardFooter">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Database Health Diagnostics Modal -->
+  <div class="modal-backdrop hidden" id="healthModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2>NEON POSTGRES DIAGNOSTICS</h2>
+          <span class="modal-subtitle">Live healthcheck & runtime metrics from @neondatabase/serverless</span>
+        </div>
+        <button class="modal-close" id="btnCloseHealth">&times;</button>
+      </div>
+      <div class="modal-body" id="healthModalBody">
+        <div class="diag-loading">Querying database...</div>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary-btn" id="btnRunPingTest">Re-test Latency</button>
+        <button class="primary-btn" id="btnCloseHealthFooter">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Over & Score Submit Modal -->
+  <div class="modal-backdrop hidden" id="gameOverModal">
+    <div class="modal-card gameover-card">
+      <div class="modal-header">
+        <h2 class="gameover-title">GAME OVER</h2>
+      </div>
+      <div class="modal-body">
+        <div class="gameover-stats-grid">
+          <div class="go-stat">
+            <span class="go-label">FINAL SCORE</span>
+            <span class="go-val neon-cyan" id="goFinalScore">0</span>
+          </div>
+          <div class="go-stat">
+            <span class="go-label">LINES CLEARED</span>
+            <span class="go-val neon-gold" id="goFinalLines">0</span>
+          </div>
+          <div class="go-stat">
+            <span class="go-label">SPEED (PPS)</span>
+            <span class="go-val neon-purple" id="goFinalPps">0.00</span>
+          </div>
+          <div class="go-stat">
+            <span class="go-label">MAX COMBO</span>
+            <span class="go-val neon-pink" id="goFinalCombo">0</span>
+          </div>
+        </div>
+
+        <form id="scoreSubmitForm" class="score-form">
+          <label for="playerNameInput">RECORD TO NEON POSTGRES LEADERBOARD:</label>
+          <div class="input-row">
+            <input type="text" id="playerNameInput" maxlength="30" value="Adriano" placeholder="Enter player name" required>
+            <button type="submit" class="primary-btn submit-btn" id="btnSubmitScore">
+              <span class="btn-text">Submit Score</span>
+              <span class="btn-spinner hidden"></span>
+            </button>
+          </div>
+          <div id="submitMessage" class="submit-message"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="primary-btn" id="btnPlayAgain">Play Again [R]</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="tetris.js"></script>
+</body>
+</html>

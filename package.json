@@ -1,0 +1,25 @@
+{
+  "name": "tetrio-adriano",
+  "version": "1.0.0",
+  "description": "Competitive modern Tetris game powered by Neon Serverless Postgres",
+  "main": "src/server.js",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "start": "node src/server.js",
+    "dev": "node src/server.js",
+    "test": "node scripts/test-e2e.js"
+  },
+  "dependencies": {
+    "@neon/config": "^1.9.3",
+    "@neon/env": "^1.6.4",
+    "@neondatabase/serverless": "^1.2.0",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
+  }
+}
