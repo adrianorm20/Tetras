@@ -45,10 +45,19 @@ app.prepare().then(() => {
 
   const io = new SocketIOServer(server, {
     cors: {
-      origin: '*',
+      origin: [
+        /^http:\/\/localhost(:\d+)?$/,
+        /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+        /^http:\/\/192\.168\./,
+        'https://tetras.vercel.app',
+        /\.vercel\.app$/,
+      ],
       methods: ['GET', 'POST'],
+      credentials: true,
     },
     transports: ['websocket', 'polling'],
+    pingTimeout: 20000,
+    pingInterval: 10000,
   });
 
   io.on('connection', (socket: Socket) => {

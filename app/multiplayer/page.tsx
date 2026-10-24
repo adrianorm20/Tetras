@@ -22,6 +22,90 @@ function computeXpForRank(rank: number, score: number, lines: number): number {
   return Math.floor(score / 40) + lines * 15 + rankBonus;
 }
 
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function ConnectionBadge({ isConnected, playerCount }: { isConnected: boolean; playerCount: number | null }) {
+  if (isConnected) {
+    return (
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-500/15 border border-emerald-500/40 text-emerald-400">
+        <Wifi size={11} />
+        {playerCount !== null ? `${playerCount}/8 online` : 'ONLINE'}
+      </div>
+    );
+  }
+  // Not connected — could be connecting or truly offline
+  if (playerCount === null) {
+    return (
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500/15 border border-amber-500/40 text-amber-400 animate-pulse">
+        <WifiOff size={11} />
+        CONECTANDO...
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-rose-500/15 border border-rose-500/40 text-rose-400">
+      <WifiOff size={11} />
+      OFFLINE
+    </div>
+  );
+}
+
+function WaitingPanel({
+  isConnected,
+  roomId,
+  username,
+  playerCount,
+}: {
+  isConnected: boolean;
+  roomId: string;
+  username: string;
+  playerCount: number | null;
+}) {
+  if (!isConnected) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 p-8 bg-slate-900/60 border border-amber-500/30 rounded-2xl max-w-xs text-center">
+        <WifiOff size={28} className="text-amber-400 animate-pulse" />
+        <div className="text-sm font-bold text-amber-300">Conectando ao servidor...</div>
+        <div className="text-xs font-mono text-slate-400">
+          Certifique-se de rodar o servidor multiplayer:
+        </div>
+        <code className="text-[10px] font-mono px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-cyan-300">
+          npm run dev:multi
+        </code>
+        <div className="text-[10px] text-slate-600 font-mono">
+          Sala: {roomId} · Você: {username}
+        </div>
+      </div>
+    );
+  }
+
+  const count = playerCount ?? 1;
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 p-8 bg-slate-900/60 border border-slate-800 rounded-2xl">
+      <div className="relative">
+        <div className="w-12 h-12 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin" />
+        <div className="absolute inset-0 flex items-center justify-center text-xs font-black text-cyan-400">
+          {count}
+        </div>
+      </div>
+      <div className="text-sm font-bold text-slate-300">
+        {count >= 2 ? 'Oponente encontrado! Iniciando...' : 'Aguardando oponentes...'}
+      </div>
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/80 border border-slate-700 rounded-xl">
+        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="text-xs font-mono text-slate-300">
+          <strong className="text-emerald-400">{count}/8</strong> jogadores na sala <strong className="text-cyan-300">{roomId}</strong>
+        </span>
+      </div>
+      {count < 2 && (
+        <div className="text-[10px] text-slate-500 font-mono">
+          Compartilhe o ID <strong className="text-slate-300">{roomId}</strong> com seus amigos
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MultiplayerPage() {
   const mp = useMultiplayer();
   const [phase, setPhase] = useState<GamePhase>('lobby');
@@ -400,10 +484,7 @@ export default function MultiplayerPage() {
           </div>
 
           {/* Connection status */}
-          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold ${mp.isConnected ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-400' : 'bg-rose-500/15 border border-rose-500/40 text-rose-400'}`}>
-            {mp.isConnected ? <Wifi size={11} /> : <WifiOff size={11} />}
-            {mp.isConnected ? `${(mp.roomState?.playerCount || 0)}/8` : 'OFFLINE'}
-          </div>
+          <ConnectionBadge isConnected={mp.isConnected} playerCount={mp.roomState?.playerCount ?? null} />
 
           <button
             id="btn-leave-room"
@@ -500,14 +581,14 @@ export default function MultiplayerPage() {
           </div>
         )}
 
-        {/* Waiting for others */}
+        {/* Waiting for others / not connected */}
         {mp.opponents.length === 0 && (
-          <div className="flex flex-col items-center justify-center gap-4 p-8 bg-slate-900/60 border border-slate-800 rounded-2xl">
-            <div className="w-12 h-12 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin" />
-            <div className="text-sm font-bold text-slate-400">Aguardando oponentes...</div>
-            <div className="text-xs font-mono text-slate-500">Sala: {roomId} · Você: {username}</div>
-            <div className="text-[10px] text-slate-600 font-mono">Compartilhe o ID da sala com seus amigos</div>
-          </div>
+          <WaitingPanel
+            isConnected={mp.isConnected}
+            roomId={roomId}
+            username={username}
+            playerCount={mp.roomState?.playerCount ?? null}
+          />
         )}
       </div>
 

@@ -50,9 +50,15 @@ export function useMultiplayer(): UseMultiplayerReturn {
   const [currentTargetId, setCurrentTargetId] = useState<string | null>(null);
 
   useEffect(() => {
-    const socket = io('http://localhost:3000', {
+    // Use dynamic origin so it works on localhost:3000, :3001, and Vercel/production
+    const serverUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+    const socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       autoConnect: false,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      timeout: 10000,
     });
 
     socketRef.current = socket;
