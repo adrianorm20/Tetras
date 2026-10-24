@@ -64,16 +64,21 @@ function WaitingPanel({
   playerCount: number | null;
 }) {
   if (!isConnected) {
+    const isCloudConfigured = typeof process.env.NEXT_PUBLIC_SOCKET_URL === 'string' && process.env.NEXT_PUBLIC_SOCKET_URL.length > 0;
     return (
-      <div className="flex flex-col items-center justify-center gap-4 p-8 bg-slate-900/60 border border-amber-500/30 rounded-2xl max-w-xs text-center">
+      <div className="flex flex-col items-center justify-center gap-4 p-8 bg-slate-900/60 border border-amber-500/30 rounded-2xl max-w-sm text-center">
         <WifiOff size={28} className="text-amber-400 animate-pulse" />
-        <div className="text-sm font-bold text-amber-300">Conectando ao servidor...</div>
+        <div className="text-sm font-bold text-amber-300">Conectando ao servidor multiplayer...</div>
         <div className="text-xs font-mono text-slate-400">
-          Certifique-se de rodar o servidor multiplayer localmente:
+          {isCloudConfigured
+            ? 'Aguardando resposta do servidor WebSocket na nuvem (pode levar alguns segundos para acordar se estiver em hibernação gratuita)...'
+            : 'Para partidas multiplayer online sem o PC ligado, configure a URL do servidor no Render/Railway, ou execute localmente:'}
         </div>
-        <code className="text-[10px] font-mono px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-cyan-300">
-          npm run dev:multi
-        </code>
+        {!isCloudConfigured && (
+          <code className="text-[10px] font-mono px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-cyan-300">
+            npm run dev:multi
+          </code>
+        )}
         <div className="text-[10px] text-slate-600 font-mono">
           Sala: {roomId} · Jogador: {username}
         </div>
