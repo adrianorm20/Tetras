@@ -32,13 +32,22 @@ export interface PlayerProfile {
   updated_at: string;
 }
 
+export interface RoomRecord {
+  id: string;
+  code: string;
+  name: string;
+  host_id: number;
+  is_public: boolean;
+  max_players: number;
+  status: 'waiting' | 'in_game' | 'finished';
+  created_at: string;
+  updated_at: string;
+  player_count?: number;
+}
+
 /**
  * Fórmula de Progressão de XP:
  * XP necessário para alcançar o nível N = 100 * (N - 1)^1.5 + 100 * (N - 1)
- * Ou seja:
- * Nível 1: 0 XP
- * Nível 2: 200 XP
- * Nível 3: ~500 XP
  */
 export function getXpForLevel(level: number): number {
   if (level <= 1) return 0;
@@ -82,6 +91,7 @@ export async function initDatabase(): Promise<void> {
           id SERIAL PRIMARY KEY,
           username VARCHAR(50) UNIQUE NOT NULL,
           email VARCHAR(100),
+          password_hash VARCHAR(255),
           xp INTEGER NOT NULL DEFAULT 0,
           level INTEGER NOT NULL DEFAULT 1,
           matches_played INTEGER NOT NULL DEFAULT 0,
@@ -92,12 +102,50 @@ export async function initDatabase(): Promise<void> {
         );
       `;
 
-      // Índices otimizados para busca de ranking em alto volume de consultas serverless
+      // Garante que a coluna password_hash exista caso tabela já tenha sido criada anteriormente
+      await sqlDirect`
+        ALTER TABLE players ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
+      `;
+
+      // Tabela de salas multiplayer (compatível com Vercel / Neon)
+      await sqlDirect`
+        CREATE TABLE IF NOT EXISTS rooms (
+          id VARCHAR(20) PRIMARY KEY,
+          code VARCHAR(6) UNIQUE NOT NULL,
+          name VARCHAR(100) NOT NULL,
+          host_id INTEGER REFERENCES players(id) ON DELETE CASCADE,
+          is_public BOOLEAN NOT NULL DEFAULT TRUE,
+          max_players INTEGER NOT NULL DEFAULT 8,
+          status VARCHAR(20) NOT NULL DEFAULT 'waiting',
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+      `;
+
+      await sqlDirect`
+        CREATE TABLE IF NOT EXISTS room_players (
+          id SERIAL PRIMARY KEY,
+          room_id VARCHAR(20) REFERENCES rooms(id) ON DELETE CASCADE,
+          player_id INTEGER REFERENCES players(id) ON DELETE CASCADE,
+          is_ready BOOLEAN NOT NULL DEFAULT FALSE,
+          is_host BOOLEAN NOT NULL DEFAULT FALSE,
+          last_seen TIMESTAMPTZ DEFAULT NOW(),
+          UNIQUE(room_id, player_id)
+        );
+      `;
+
+      // Índices otimizados
       await sqlDirect`
         CREATE INDEX IF NOT EXISTS idx_players_high_score ON players (high_score DESC);
       `;
       await sqlDirect`
         CREATE INDEX IF NOT EXISTS idx_players_level_xp ON players (level DESC, xp DESC);
+      `;
+      await sqlDirect`
+        CREATE INDEX IF NOT EXISTS idx_rooms_code ON rooms (code);
+      `;
+      await sqlDirect`
+        CREATE INDEX IF NOT EXISTS idx_rooms_public ON rooms (is_public, status);
       `;
 
       // Popula dados de seed iniciais se a tabela for nova

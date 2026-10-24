@@ -1,49 +1,25 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import TetrisBoard from '@/components/TetrisBoard';
 import PlayerProfileCard from '@/components/PlayerProfileCard';
-import { PlayerProfile } from '@/lib/db';
-import { Swords } from 'lucide-react';
+import ModeSelection from '@/components/ModeSelection';
+import { useAuth } from '@/components/AuthContext';
+import { Swords, ArrowLeft, Gamepad2 } from 'lucide-react';
 
 export default function HomePage() {
-  const [player, setPlayer] = useState<PlayerProfile | null>(null);
-  const [progress, setProgress] = useState<{
-    level: number;
-    currentLevelXp: number;
-    nextLevelXp: number;
-    progressPercent: number;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchProfile = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await fetch('/api/player?username=Adriano');
-      const data = await res.json();
-      if (data.success) {
-        setPlayer(data.player);
-        setProgress(data.progress);
-      }
-    } catch (err) {
-      console.error('Falha ao carregar perfil:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+  const { player, progress, loading, refreshProfile, updateLocalPlayer } = useAuth();
+  const [isPlayingSolo, setIsPlayingSolo] = useState(false);
 
   const handleMatchFinished = async (result: { score: number; lines: number; won?: boolean }) => {
     try {
+      const username = player?.username || 'Adriano';
       const res = await fetch('/api/match-finish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: player?.username || 'Adriano',
+          username,
           score: result.score,
           lines: result.lines,
           won: result.won || false,
@@ -51,9 +27,8 @@ export default function HomePage() {
       });
 
       const data = await res.json();
-      if (data.success) {
-        setPlayer(data.player);
-        setProgress(data.progress);
+      if (data.success && data.player) {
+        updateLocalPlayer(data.player);
         return data;
       }
     } catch (err) {
@@ -63,37 +38,38 @@ export default function HomePage() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col items-center py-6 px-4 gap-4 max-w-5xl mx-auto">
-      {/* Multiplayer CTA Banner */}
-      <Link
-        href="/multiplayer"
-        className="w-full flex items-center justify-between px-5 py-3 bg-gradient-to-r from-fuchsia-600/20 via-cyan-500/10 to-fuchsia-600/20 border border-fuchsia-500/40 rounded-2xl hover:from-fuchsia-600/30 hover:border-fuchsia-400/60 transition shadow-[0_0_20px_rgba(168,85,247,0.15)] group"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-fuchsia-500 to-cyan-400 flex items-center justify-center shadow-[0_0_12px_rgba(168,85,247,0.5)]">
-            <Swords size={15} className="text-white" />
-          </div>
-          <div>
-            <div className="text-sm font-black text-white tracking-wider">MODO MULTIPLAYER</div>
-            <div className="text-[10px] font-mono text-fuchsia-400/80">Salas de até 8 jogadores • Socket.IO em tempo real</div>
-          </div>
-        </div>
-        <div className="text-[11px] font-black text-fuchsia-400 group-hover:text-white transition tracking-wider">
-          JOGAR →
-        </div>
-      </Link>
-
-      {/* Componente Visual de Perfil do Jogador (Etapa 2) */}
+    <main className="min-h-screen flex flex-col items-center py-4 px-4 gap-4 max-w-5xl mx-auto">
+      {/* Componente Visual de Perfil do Jogador */}
       <PlayerProfileCard
         player={player}
         progress={progress}
         loading={loading}
-        onRefresh={fetchProfile}
+        onRefresh={refreshProfile}
       />
 
-      {/* Componente Principal do Motor de Tetris (Etapa 1 + Callback Etapa 2) */}
-      <TetrisBoard onMatchEnd={handleMatchFinished} />
+      {!isPlayingSolo ? (
+        /* Painel de Seleção de Modos (Menu Inicial Estilo Arcade) */
+        <ModeSelection onStartSolo={() => setIsPlayingSolo(true)} />
+      ) : (
+        /* Partida Solo Ativa */
+        <div className="w-full flex flex-col items-center gap-3 animate-in fade-in duration-300">
+          <div className="w-full flex items-center justify-between px-2">
+            <button
+              onClick={() => setIsPlayingSolo(false)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-mono transition"
+            >
+              <ArrowLeft size={14} />
+              <span>Voltar ao Menu de Modos</span>
+            </button>
+            <div className="flex items-center gap-2 text-xs font-mono text-cyan-400">
+              <Gamepad2 size={15} />
+              <span>MODO SOLO ATIVO</span>
+            </div>
+          </div>
+
+          <TetrisBoard onMatchEnd={handleMatchFinished} />
+        </div>
+      )}
     </main>
   );
 }
-

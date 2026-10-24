@@ -9,7 +9,7 @@ export class TetrisEngine {
   private isLocking = false;
   private moveResets = 0;
   private readonly MAX_LOCK_RESETS = 15;
-  private readonly LOCK_DELAY = 500; // ms
+  private readonly LOCK_DELAY = 500; // 500ms Lock Delay competitivo padrão Tetr.io
   private startTime: number | null = null;
   private lastMoveWasRotate = false;
   public onStateChange?: (state: TetrisState) => void;
@@ -203,10 +203,12 @@ export class TetrisEngine {
       this.lastMoveWasRotate = false;
       this.state.telemetry.score += 1;
       this.dropTimer = 0;
+      this.handlePieceMoved();
       this.notify();
       return true;
     } else {
-      this.lockCurrentPiece();
+      // Se já estiver no chão e o jogador pressionar soft drop, inicia/mantém lock
+      this.isLocking = true;
       return true;
     }
   }
@@ -239,6 +241,7 @@ export class TetrisEngine {
     if (type === 'O') {
       this.state.currentPiece.rotation = nextRot;
       this.lastMoveWasRotate = true;
+      this.handlePieceMoved();
       this.onSoundTrigger?.('rotate');
       this.notify();
       return true;
@@ -297,11 +300,13 @@ export class TetrisEngine {
     this.notify();
   }
 
+  /**
+   * Reseta o Lock Delay sempre que a peça for movida ou rotacionada no chão (fórmula padrão Tetr.io)
+   */
   private handlePieceMoved() {
     if (!this.state.currentPiece) return;
     this.state.ghostY = this.computeGhostY(this.state.currentPiece);
 
-    // If resting on ground/surface, reset lock timer up to limit
     const onFloor = this.checkCollision(
       this.state.currentPiece.type,
       this.state.currentPiece.rotation,
@@ -312,7 +317,7 @@ export class TetrisEngine {
     if (onFloor) {
       this.isLocking = true;
       if (this.moveResets < this.MAX_LOCK_RESETS) {
-        this.lockTimer = 0;
+        this.lockTimer = 0; // Reinicia o timer de 500ms
         this.moveResets++;
       }
     } else {
@@ -347,9 +352,15 @@ export class TetrisEngine {
     this.spawnNextPiece();
   }
 
+  /**
+   * Envio de Lixo Avançado (Garbage Sending Fórmula Oficial Tetr.io):
+   * 1 Linha = 0 lixo | 2 Linhas = 1 lixo | 3 Linhas = 2 lixo | Tetris (4 Linhas) = 4 lixo
+   * T-Spins: TSS = 2 lixo | TSD = 4 lixo | TST = 6 lixo
+   * Bônus Combo: +1 lixo a cada 2 combos após combo 1
+   * Garbage Queue: O lixo recebido é acumulado e só sobe na matriz quando a peça atual é posicionada
+   */
   private clearLines(isTSpin: boolean = false) {
     let linesCleared = 0;
-    // Filtra apenas as linhas que NÃO estão completamente preenchidas (não nulas)
     const preservedRows: (PieceType | 0)[][] = [];
 
     for (let r = 0; r < ROWS; r++) {
@@ -358,11 +369,10 @@ export class TetrisEngine {
       if (isFull) {
         linesCleared++;
       } else {
-        preservedRows.push([...row]); // Clona a linha para garantir isolamento de referências
+        preservedRows.push([...row]);
       }
     }
 
-    // Cria novas linhas vazias e limpas no topo
     const emptyRowsCount = ROWS - preservedRows.length;
     const cleanEmptyRows: (PieceType | 0)[][] = Array.from({ length: emptyRowsCount }, () =>
       Array<0>(COLS).fill(0)
@@ -400,6 +410,7 @@ export class TetrisEngine {
         clearText = clearNames[linesCleared] || `${linesCleared} LINES!`;
         clearType = linesCleared === 3 ? 'triple' : linesCleared === 2 ? 'double' : 'single';
         points = (linesCleared === 1 ? 100 : linesCleared === 2 ? 300 : 500) * level;
+        // Padrão competitivo: 1 linha = 0 lixo, 2 linhas = 1 lixo, 3 linhas = 2 lixo
         attackLines = linesCleared === 2 ? 1 : linesCleared === 3 ? 2 : 0;
         this.onSoundTrigger?.('clear');
       }
@@ -421,12 +432,13 @@ export class TetrisEngine {
         clearType,
       };
 
+      // Bônus de Ataque por Combo
       if (this.state.telemetry.combo > 1) {
         attackLines += Math.min(4, Math.floor(this.state.telemetry.combo / 2));
       }
 
       if (attackLines > 0) {
-        // Garbage Blocking / Cancelling
+        // Garbage Cancelling (defesa ativa contra lixo pendente na fila)
         if (this.state.incomingGarbage > 0) {
           const cancelled = Math.min(this.state.incomingGarbage, attackLines);
           this.state.incomingGarbage -= cancelled;
@@ -437,10 +449,12 @@ export class TetrisEngine {
           this.onGarbageSent?.(attackLines, clearType);
         }
       }
+
+      // Se ainda restou lixo após a anulação e não limpou mais linhas, o lixo remanescente não sobe imediatamente neste turno com clear
     } else {
       this.state.telemetry.combo = -1;
 
-      // Se não limpou linhas nesta jogada e há lixo na fila, insere as linhas de lixo agora
+      // O lixo pendente na Garbage Queue só sobe no tabuleiro agora que a peça foi posicionada sem linha limpa
       if (this.state.incomingGarbage > 0) {
         this.pushGarbageLines(this.state.incomingGarbage);
         this.state.incomingGarbage = 0;
@@ -448,34 +462,24 @@ export class TetrisEngine {
     }
   }
 
-  /**
-   * Enfileira lixo recebido de um ataque
-   */
   public addIncomingGarbage(lines: number) {
     if (this.state.isGameOver) return;
     this.state.incomingGarbage += lines;
     this.notify();
   }
 
-  /**
-   * Empurra as linhas de lixo (cinzas) da parte inferior da matriz com buraco aleatório alinhado
-   */
   public pushGarbageLines(count: number) {
     if (count <= 0 || this.state.isGameOver) return;
     const holeCol = Math.floor(Math.random() * COLS);
 
     for (let i = 0; i < count; i++) {
-      // Remove linha do topo
       this.state.matrix.shift();
-      // Cria nova linha de lixo na base
       const garbageRow: (PieceType | 0)[] = Array(COLS).fill('G');
-      garbageRow[holeCol] = 0; // O buraco para permitir que o jogador continue limpando
+      garbageRow[holeCol] = 0;
       this.state.matrix.push(garbageRow);
     }
 
-    // Recalcula fantasma
     if (this.state.currentPiece) {
-      // Se a peça colidir devido ao lixo empurrado, sobe a peça ou encerra o jogo
       if (this.checkCollision(this.state.currentPiece.type, this.state.currentPiece.rotation, this.state.currentPiece.x, this.state.currentPiece.y)) {
         this.state.currentPiece.y = Math.max(0, this.state.currentPiece.y - count);
         if (this.checkCollision(this.state.currentPiece.type, this.state.currentPiece.rotation, this.state.currentPiece.x, this.state.currentPiece.y)) {
@@ -488,11 +492,12 @@ export class TetrisEngine {
     this.notify();
   }
 
-  // 60 FPS Engine Tick
+  /**
+   * 60 FPS Engine Tick com Gravidade Progressiva Contínua
+   */
   public tick(deltaMs: number) {
     if (this.state.isGameOver || this.state.isPaused || !this.state.currentPiece) return;
 
-    // Update real-time speed metrics (PPS / APM)
     if (this.startTime) {
       const elapsedSec = (Date.now() - this.startTime) / 1000;
       if (elapsedSec > 0.5) {
@@ -502,8 +507,12 @@ export class TetrisEngine {
       }
     }
 
-    // Progressive gravity speed: drops faster at higher levels
-    const gravitySpeed = Math.max(80, 1000 - (this.state.telemetry.level - 1) * 85);
+    // Gravidade Progressiva: aceleração gradual com nível e tempo de partida
+    const elapsedMinutes = (this.state.telemetry.durationSeconds || 0) / 60;
+    const timeAcceleration = Math.floor(elapsedMinutes * 30);
+    const levelFactor = (this.state.telemetry.level - 1) * 75;
+    const gravitySpeed = Math.max(60, 1000 - levelFactor - timeAcceleration);
+
     this.dropTimer += deltaMs;
 
     const onFloor = this.checkCollision(
@@ -516,6 +525,7 @@ export class TetrisEngine {
     if (onFloor) {
       this.isLocking = true;
       this.lockTimer += deltaMs;
+      // Ao esgotar o Lock Delay de 500ms, trava a peça definitivamente
       if (this.lockTimer >= this.LOCK_DELAY) {
         this.lockCurrentPiece();
         this.notify();
