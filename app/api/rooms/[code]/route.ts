@@ -56,3 +56,32 @@ export async function GET(
     return NextResponse.json({ success: false, error: 'Erro ao buscar detalhes da sala' }, { status: 500 });
   }
 }
+
+// Fechar ou deletar a sala quando o host sair
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ code: string }> }
+) {
+  try {
+    await initDatabase();
+    const { code } = await params;
+    const cleanCode = (code || '').toUpperCase().trim();
+
+    // Remove jogadores associados e marca a sala como finished
+    await sql`
+      DELETE FROM room_players 
+      WHERE room_id IN (SELECT id FROM rooms WHERE UPPER(code) = ${cleanCode} OR id = ${code});
+    `;
+
+    await sql`
+      UPDATE rooms 
+      SET status = 'finished' 
+      WHERE UPPER(code) = ${cleanCode} OR id = ${code};
+    `;
+
+    return NextResponse.json({ success: true, message: 'Sala encerrada com sucesso.' });
+  } catch (err: unknown) {
+    console.error('[API Room DELETE] Erro:', err);
+    return NextResponse.json({ success: false, error: 'Erro ao encerrar a sala' }, { status: 500 });
+  }
+}

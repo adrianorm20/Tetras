@@ -36,7 +36,9 @@ export interface UseMultiplayerReturn {
   lastAttack: AttackEvent | null;
   matchResult: MatchFinishedData | null;
   roomError: string | null;
-  joinRoom: (roomId: string, username: string) => void;
+  roomClosedMessage: string | null;
+  clearRoomClosedMessage: () => void;
+  joinRoom: (roomId: string, username: string, isHost?: boolean) => void;
   leaveRoom: () => void;
   sendMatrixUpdate: (matrix: (PieceType | 0 | 'G')[][], score: number, lines: number, isAlive: boolean) => void;
   sendAttack: (lines: number, type: AttackEvent['type']) => void;
@@ -56,6 +58,7 @@ export function useMultiplayer(): UseMultiplayerReturn {
   const [lastAttack, setLastAttack] = useState<AttackEvent | null>(null);
   const [matchResult, setMatchResult] = useState<MatchFinishedData | null>(null);
   const [roomError, setRoomError] = useState<string | null>(null);
+  const [roomClosedMessage, setRoomClosedMessage] = useState<string | null>(null);
   const [mySocketId, setMySocketId] = useState<string | null>(null);
   const [currentStrategy, setCurrentStrategy] = useState<TargetingStrategy>('leader');
   const [currentTargetId, setCurrentTargetId] = useState<string | null>(null);
@@ -120,26 +123,43 @@ export function useMultiplayer(): UseMultiplayerReturn {
       setRoomError(message);
     });
 
+    socket.on('room_closed', ({ reason }: { reason: string }) => {
+      const msg = reason || 'O anfitrião encerrou a sala.';
+      setRoomClosedMessage(msg);
+      setRoomState(null);
+      setOpponents([]);
+      setMatchResult(null);
+      setIncomingGarbage(0);
+    });
+
     return () => {
       socket.disconnect();
       socket.removeAllListeners();
     };
   }, []);
 
-  const joinRoom = useCallback((roomId: string, username: string) => {
+  const clearRoomClosedMessage = useCallback(() => {
+    setRoomClosedMessage(null);
+  }, []);
+
+  const joinRoom = useCallback((roomId: string, username: string, isHost: boolean = false) => {
     const socket = socketRef.current;
     if (!socket) return;
     setMatchResult(null);
     setRoomError(null);
+    setRoomClosedMessage(null);
     setIncomingGarbage(0);
     setOpponents([]);
     if (!socket.connected) socket.connect();
-    socket.emit('join_room', { roomId, username });
+    socket.emit('join_room', { roomId, username, isHost });
   }, []);
 
   const leaveRoom = useCallback(() => {
     const socket = socketRef.current;
-    if (socket) socket.disconnect();
+    if (socket) {
+      socket.emit('leave_room');
+      socket.disconnect();
+    }
     setRoomState(null);
     setOpponents([]);
     setMatchResult(null);
@@ -178,6 +198,8 @@ export function useMultiplayer(): UseMultiplayerReturn {
     lastAttack,
     matchResult,
     roomError,
+    roomClosedMessage,
+    clearRoomClosedMessage,
     joinRoom,
     leaveRoom,
     sendMatrixUpdate,

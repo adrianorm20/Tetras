@@ -5,6 +5,8 @@ import { PieceType } from './lib/tetris/types';
 
 const port = parseInt(process.env.PORT || '3001', 10);
 
+import { sql } from './lib/db';
+
 interface PlayerSession {
   socketId: string;
   username: string;
@@ -23,6 +25,7 @@ interface PlayerSession {
 }
 
 const rooms: Record<string, Record<string, PlayerSession>> = {};
+const roomHosts: Record<string, string> = {}; // roomId -> socketId do host
 
 function getEmptyMatrix(): (PieceType | 0 | 'G')[][] {
   return Array.from({ length: 20 }, () => Array(10).fill(0));
@@ -54,8 +57,46 @@ io.on('connection', (socket: Socket) => {
   let currentRoomId: string | null = null;
   let currentUsername: string | null = null;
 
-  socket.on('join_room', ({ roomId, username }: { roomId: string; username: string }) => {
-    const roomKey = roomId || 'default-arena';
+  async function closeRoomAndNotify(roomId: string, reason: string = 'O anfitrião (host) encerrou ou saiu da sala.') {
+    if (!roomId) return;
+    console.log(`[Multiplayer] Fechando sala ${roomId}. Motivo: ${reason}`);
+
+    // Notifica todos na sala
+    io.to(roomId).emit('room_closed', { reason });
+
+    // Desassocia os sockets da sala
+    try {
+      const roomSockets = await io.in(roomId).fetchSockets();
+      for (const s of roomSockets) {
+        s.leave(roomId);
+      }
+    } catch (err) {
+      // Fallback silencioso
+    }
+
+    delete rooms[roomId];
+    delete roomHosts[roomId];
+
+    // Atualiza e limpa no Neon Database
+    try {
+      const cleanCode = roomId.toUpperCase().trim();
+      await sql`
+        DELETE FROM room_players 
+        WHERE room_id IN (SELECT id FROM rooms WHERE UPPER(code) = ${cleanCode} OR id = ${roomId});
+      `;
+      await sql`
+        UPDATE rooms 
+        SET status = 'finished' 
+        WHERE UPPER(code) = ${cleanCode} OR id = ${roomId};
+      `;
+      console.log(`[Multiplayer] Sala ${roomId} finalizada e fechada no Neon.`);
+    } catch (dbErr) {
+      console.error(`[Multiplayer] Erro ao fechar sala ${roomId} no Neon:`, dbErr);
+    }
+  }
+
+  socket.on('join_room', ({ roomId, username, isHost }: { roomId: string; username: string; isHost?: boolean }) => {
+    const roomKey = (roomId || 'default-arena').trim();
     currentRoomId = roomKey;
     currentUsername = username || `Player_${socket.id.slice(0, 4)}`;
 
@@ -63,6 +104,11 @@ io.on('connection', (socket: Socket) => {
 
     if (!rooms[roomKey]) {
       rooms[roomKey] = {};
+    }
+
+    // Se é o host declarado ou se é o primeiro a entrar, define como host da sala
+    if (isHost || !roomHosts[roomKey]) {
+      roomHosts[roomKey] = socket.id;
     }
 
     if (Object.keys(rooms[roomKey]).length >= 8) {
@@ -87,7 +133,7 @@ io.on('connection', (socket: Socket) => {
       lastAttackerId: null,
     };
 
-    console.log(`[Multiplayer] ${currentUsername} (${socket.id}) entrou na sala ${roomKey}. Total: ${Object.keys(rooms[roomKey]).length}/8`);
+    console.log(`[Multiplayer] ${currentUsername} (${socket.id}) entrou na sala ${roomKey} (Host: ${roomHosts[roomKey] === socket.id ? 'SIM' : 'NÃO'}). Total: ${Object.keys(rooms[roomKey]).length}/8`);
     broadcastRoomState(roomKey);
   });
 
@@ -159,19 +205,34 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
-  socket.on('disconnect', () => {
-    if (currentRoomId && rooms[currentRoomId] && rooms[currentRoomId][socket.id]) {
-      const username = rooms[currentRoomId][socket.id].username;
-      delete rooms[currentRoomId][socket.id];
-      console.log(`[Multiplayer] ${username} desconectou da sala ${currentRoomId}.`);
-      if (Object.keys(rooms[currentRoomId]).length === 0) {
-        delete rooms[currentRoomId];
+  // Saída e Desconexão com fechamento automático se for o host
+  const handleLeaveOrDisconnect = () => {
+    if (!currentRoomId) return;
+    const roomKey = currentRoomId;
+
+    if (roomHosts[roomKey] === socket.id) {
+      console.log(`[Multiplayer] Host ${currentUsername} (${socket.id}) saiu da sala ${roomKey}. Encerrando a sala para todos.`);
+      closeRoomAndNotify(roomKey, 'O anfitrião (host) encerrou ou saiu da sala.');
+      currentRoomId = null;
+      return;
+    }
+
+    if (rooms[roomKey] && rooms[roomKey][socket.id]) {
+      const username = rooms[roomKey][socket.id].username;
+      delete rooms[roomKey][socket.id];
+      console.log(`[Multiplayer] ${username} desconectou da sala ${roomKey}.`);
+      if (Object.keys(rooms[roomKey]).length === 0) {
+        closeRoomAndNotify(roomKey, 'Todos os jogadores saíram da sala.');
       } else {
-        broadcastRoomState(currentRoomId);
-        checkMatchFinished(currentRoomId);
+        broadcastRoomState(roomKey);
+        checkMatchFinished(roomKey);
       }
     }
-  });
+    currentRoomId = null;
+  };
+
+  socket.on('leave_room', handleLeaveOrDisconnect);
+  socket.on('disconnect', handleLeaveOrDisconnect);
 });
 
 function resolveTarget(

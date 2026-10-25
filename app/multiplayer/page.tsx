@@ -9,7 +9,8 @@ import { TargetingStrategy } from '@/lib/tetris/multiplayerTypes';
 import { useAuth } from '@/components/AuthContext';
 import {
   Wifi, WifiOff, Users, Target, Swords, Trophy, ArrowLeft,
-  Crosshair, Skull, Shield, Zap, Crown, Plus, Key, Globe, Lock, RefreshCw, Check
+  Crosshair, Skull, Shield, Zap, Crown, Plus, Key, Globe, Lock, RefreshCw, Check,
+  AlertCircle, Sparkles
 } from 'lucide-react';
 
 const MultiplayerBoard = dynamic(() => import('@/components/MultiplayerBoard'), { ssr: false });
@@ -132,6 +133,8 @@ export default function MultiplayerPage() {
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [codeError, setCodeError] = useState<string | null>(null);
 
+  const [isCurrentHost, setIsCurrentHost] = useState(false);
+
   // Sync auth username
   useEffect(() => {
     if (player?.username) {
@@ -159,6 +162,16 @@ export default function MultiplayerPage() {
     fetchRooms();
   }, [fetchRooms]);
 
+  // Se a sala for fechada pelo host, retorna ao lobby automaticamente
+  useEffect(() => {
+    if (mp.roomClosedMessage) {
+      setPhase('lobby');
+      setIsCurrentHost(false);
+      setDbResults(null);
+      fetchRooms();
+    }
+  }, [mp.roomClosedMessage, fetchRooms]);
+
   // Create Room in Neon
   const handleCreateRoom = async () => {
     try {
@@ -176,7 +189,8 @@ export default function MultiplayerPage() {
       if (data.success && data.room) {
         setRoomId(data.room.code);
         setRoomCode(data.room.code);
-        mp.joinRoom(data.room.code, username);
+        setIsCurrentHost(true);
+        mp.joinRoom(data.room.code, username, true);
         setPhase('in_room');
         setDbResults(null);
       }
@@ -199,7 +213,8 @@ export default function MultiplayerPage() {
       if (data.success && data.room) {
         setRoomId(data.room.code);
         setRoomCode(data.room.code);
-        mp.joinRoom(data.room.code, username);
+        setIsCurrentHost(false);
+        mp.joinRoom(data.room.code, username, false);
         setPhase('in_room');
         setDbResults(null);
       } else {
@@ -214,7 +229,8 @@ export default function MultiplayerPage() {
   const handleJoin = useCallback((targetRoom: string) => {
     if (!targetRoom.trim() || !username.trim()) return;
     setRoomId(targetRoom);
-    mp.joinRoom(targetRoom.trim(), username.trim());
+    setIsCurrentHost(false);
+    mp.joinRoom(targetRoom.trim(), username.trim(), false);
     setPhase('in_room');
     setDbResults(null);
   }, [username, mp]);
@@ -263,12 +279,21 @@ export default function MultiplayerPage() {
     }
   }, [mp.matchResult, phase, player, updateLocalPlayer]);
 
-  const handleLeave = useCallback(() => {
+  const handleLeave = useCallback(async () => {
+    // Se for o host, encerra e remove a sala no Neon imediatamente
+    if (isCurrentHost && roomId) {
+      try {
+        await fetch(`/api/rooms/${roomId}`, { method: 'DELETE' });
+      } catch (e) {
+        console.error('Erro ao deletar sala no Neon ao sair:', e);
+      }
+    }
     mp.leaveRoom();
+    setIsCurrentHost(false);
     setPhase('lobby');
     setDbResults(null);
     fetchRooms();
-  }, [mp, fetchRooms]);
+  }, [isCurrentHost, roomId, mp, fetchRooms]);
 
   const handleSetStrategy = useCallback((strategy: TargetingStrategy) => {
     mp.setTarget(undefined, strategy);
@@ -401,74 +426,90 @@ export default function MultiplayerPage() {
           </div>
         </div>
 
+        {/* Notificação se a sala foi fechada pelo host */}
+        {mp.roomClosedMessage && (
+          <div className="w-full max-w-4xl bg-rose-500/10 border border-rose-500/30 rounded-2xl p-4 flex items-center justify-between text-rose-300 text-xs font-mono animate-fade-in shadow-lg">
+            <div className="flex items-center gap-2.5">
+              <AlertCircle size={18} className="text-rose-400 shrink-0" />
+              <span>{mp.roomClosedMessage}</span>
+            </div>
+            <button
+              onClick={mp.clearRoomClosedMessage}
+              className="text-rose-400/80 hover:text-rose-200 transition text-sm font-bold ml-4 px-2.5 py-1 rounded-lg bg-rose-500/20"
+            >
+              OK
+            </button>
+          </div>
+        )}
+
         {/* Public Rooms List from Neon */}
         <div className="w-full max-w-4xl bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-3xl p-6 flex flex-col gap-4 shadow-xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <Globe size={18} className="text-cyan-400" />
-              <h3 className="text-sm font-black text-white tracking-wider">SALAS PÚBLICAS DISPONÍVEIS (NEON)</h3>
+              <h3 className="text-sm font-black text-white tracking-wider">SALAS PÚBLICAS DISPONÍVEIS</h3>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700/50">
+                {publicRooms.length} {publicRooms.length === 1 ? 'ativa' : 'ativas'}
+              </span>
             </div>
             <button
               onClick={fetchRooms}
               disabled={isLoadingRooms}
-              className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition"
+              className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition flex items-center gap-1.5 text-xs font-mono px-2.5"
               title="Atualizar lista"
             >
-              <RefreshCw size={14} className={isLoadingRooms ? 'animate-spin text-cyan-400' : ''} />
+              <RefreshCw size={13} className={isLoadingRooms ? 'animate-spin text-cyan-400' : ''} />
+              <span className="hidden sm:inline text-[11px]">Atualizar</span>
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {/* Salas Padrão Rápidas */}
-            {['arena-1', 'arena-2', 'arena-3'].map(r => (
-              <div
-                key={r}
-                className="p-4 bg-slate-950/70 border border-slate-800 hover:border-cyan-500/50 rounded-2xl flex flex-col justify-between gap-3 transition group"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-black text-white uppercase font-mono">{r}</span>
-                    <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/20 text-cyan-300">
-                      Rápida
-                    </span>
-                  </div>
-                  <p className="text-[10px] font-mono text-slate-500">Arena aberta global padrão</p>
-                </div>
-                <button
-                  onClick={() => handleJoin(r)}
-                  className="w-full py-2 rounded-xl bg-slate-800 group-hover:bg-cyan-500 text-slate-300 group-hover:text-slate-950 font-bold text-xs font-mono transition"
-                >
-                  Entrar na Sala →
-                </button>
+          {publicRooms.length === 0 ? (
+            <div className="py-12 px-6 rounded-2xl bg-slate-950/40 border border-dashed border-slate-800/80 flex flex-col items-center justify-center text-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-slate-800/60 border border-slate-700/50 flex items-center justify-center text-slate-400 mb-1">
+                <Sparkles size={18} className="text-cyan-400/80" />
               </div>
-            ))}
-
-            {/* Salas dinâmicas criadas no Neon */}
-            {publicRooms.map(room => (
-              <div
-                key={room.id}
-                className="p-4 bg-slate-950/70 border border-slate-800 hover:border-fuchsia-500/50 rounded-2xl flex flex-col justify-between gap-3 transition group"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-black text-white truncate max-w-[130px]">{room.name}</span>
-                    <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-fuchsia-500/20 text-fuchsia-300">
-                      {room.code}
-                    </span>
-                  </div>
-                  <p className="text-[10px] font-mono text-slate-500">
-                    Host: {room.host_name || 'Desconhecido'} • {room.player_count || 1}/8 jogadores
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleJoin(room.code)}
-                  className="w-full py-2 rounded-xl bg-slate-800 group-hover:bg-fuchsia-500 text-slate-300 group-hover:text-slate-950 font-bold text-xs font-mono transition"
+              <p className="text-xs font-bold text-slate-300 font-mono tracking-wider">
+                NENHUMA SALA ABERTA NO MOMENTO
+              </p>
+              <p className="text-[11px] text-slate-500 max-w-md">
+                Crie sua própria arena personalizada no card acima para que outros jogadores possam entrar e disputar com você!
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {publicRooms.map(room => (
+                <div
+                  key={room.id}
+                  className="p-4 bg-slate-950/70 border border-slate-800/80 hover:border-fuchsia-500/50 rounded-2xl flex flex-col justify-between gap-3 transition-all duration-200 group hover:shadow-[0_0_20px_rgba(236,72,153,0.15)]"
                 >
-                  Entrar ({room.code}) →
-                </button>
-              </div>
-            ))}
-          </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-black text-white truncate max-w-[140px]" title={room.name}>
+                        {room.name}
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30">
+                        {room.code}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                      <span className="truncate max-w-[120px]">
+                        Host: <strong className="text-slate-300">{room.host_name || 'Desconhecido'}</strong>
+                      </span>
+                      <span className="text-slate-500 text-[10px]">
+                        {room.player_count || 1}/8 jogadores
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleJoin(room.code)}
+                    className="w-full py-2.5 rounded-xl bg-slate-800/90 group-hover:bg-gradient-to-r group-hover:from-fuchsia-500 group-hover:to-cyan-400 text-slate-300 group-hover:text-slate-950 font-bold text-xs font-mono transition-all duration-200 shadow-sm"
+                  >
+                    Entrar na Sala ({room.code}) →
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </main>
     );
@@ -477,23 +518,29 @@ export default function MultiplayerPage() {
   // ── IN ROOM / MULTIPLAYER GAME ─────────────────────────────────────────────
   if (phase === 'in_room') {
     const oppCount = mp.opponents.length;
-    const isHost = true; // Permissão de controle da sala
+    const isHost = isCurrentHost; // Permissão real de host da sala
     return (
       <main className="min-h-screen flex flex-col items-center justify-start py-4 px-3 gap-3 max-w-7xl mx-auto">
         {/* Top Bar Navigation */}
         <div className="w-full flex items-center justify-between px-2">
           <button
             onClick={handleLeave}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-mono transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/80 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border border-slate-800 hover:border-rose-500/40 text-xs font-mono transition"
+            title={isHost ? 'Como host, sair encerrará a sala para todos os participantes' : 'Sair da sala'}
           >
             <ArrowLeft size={14} />
-            <span>Sair da Sala</span>
+            <span>{isHost ? 'Encerrar Sala (Host)' : 'Sair da Sala'}</span>
           </button>
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono">
               <span className="text-slate-500">SALA:</span>
               <span className="text-cyan-300 font-bold">{roomId}</span>
+              {isHost && (
+                <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  HOST
+                </span>
+              )}
             </div>
             <ConnectionBadge isConnected={mp.isConnected} playerCount={mp.roomState?.playerCount ?? null} />
           </div>
