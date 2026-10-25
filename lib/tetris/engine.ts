@@ -16,7 +16,10 @@ export class TetrisEngine {
   public onSoundTrigger?: (sound: 'move' | 'rotate' | 'drop' | 'hold' | 'clear' | 'tetris' | 'tspin' | 'gameover' | 'garbage_rise') => void;
   public onGarbageSent?: (lines: number, clearType: 'single' | 'double' | 'triple' | 'tetris' | 'combo' | 'tspin' | 'quad') => void;
 
-  constructor() {
+  public isMultiplayer: boolean = false;
+
+  constructor(isMultiplayer: boolean = false) {
+    this.isMultiplayer = isMultiplayer;
     this.state = this.getInitialState();
     this.init();
   }
@@ -39,10 +42,12 @@ export class TetrisEngine {
         pps: 0,
         apm: 0,
         durationSeconds: 0,
+        currentGravityMs: 1000,
       },
       incomingGarbage: 0,
       isGameOver: false,
       isPaused: false,
+      currentGravityMs: 1000,
       lastClear: null,
     };
   }
@@ -534,11 +539,33 @@ export class TetrisEngine {
       }
     }
 
-    // Gravidade Progressiva: aceleração gradual com nível e tempo de partida
+    // ── CURVA DE GRAVIDADE PROGRESSIVA (ACELERAÇÃO DINÂMICA) ──────────────
+    // Nível inicial (LV 1): 1000ms por queda
+    // Conforme avança em nível e tempo, a gravidade acelera suavemente até um piso desafiador
     const elapsedMinutes = (this.state.telemetry.durationSeconds || 0) / 60;
-    const timeAcceleration = Math.floor(elapsedMinutes * 30);
-    const levelFactor = (this.state.telemetry.level - 1) * 75;
-    const gravitySpeed = Math.max(60, 1000 - levelFactor - timeAcceleration);
+    const currentLevel = this.state.telemetry.level || 1;
+
+    let gravitySpeed: number;
+
+    if (this.isMultiplayer) {
+      // No Multiplayer competitivo (estilo Tetr.io Versus):
+      // Aceleração agressiva por tempo para evitar partidas infinitas
+      // Base: 900ms, reduz ~80ms por nível e +150ms a cada minuto de partida
+      // Teto mínimo: 110ms
+      const timeFactor = Math.floor(elapsedMinutes * 150);
+      const levelFactor = (currentLevel - 1) * 75;
+      gravitySpeed = Math.max(110, 950 - levelFactor - timeFactor);
+    } else {
+      // No Singleplayer (curva de sobrevivência clássica/competitiva):
+      // Nível 1: 1000ms, Nível 5: 600ms, Nível 10: 250ms, Nível 15+: 100ms
+      // Fórmula exponencial suave: 1000 * (0.85 ^ (level - 1)) - aceleração temporal
+      const timeFactor = Math.floor(elapsedMinutes * 40);
+      const curveMs = Math.round(1000 * Math.pow(0.86, currentLevel - 1));
+      gravitySpeed = Math.max(90, curveMs - timeFactor);
+    }
+
+    this.state.currentGravityMs = gravitySpeed;
+    this.state.telemetry.currentGravityMs = gravitySpeed;
 
     this.dropTimer += deltaMs;
 

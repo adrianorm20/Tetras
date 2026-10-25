@@ -107,7 +107,7 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
 
   // Initialize engine
   useEffect(() => {
-    const engine = new TetrisEngine();
+    const engine = new TetrisEngine(true);
     engineRef.current = engine;
 
     engine.onStateChange = (state) => {
@@ -428,6 +428,10 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
             <div className="text-sm font-bold font-mono text-amber-400">{telemetry?.lines || 0}</div>
             <div className="text-[9px] font-mono text-slate-500">LVL</div>
             <div className="text-sm font-bold font-mono text-fuchsia-400">{telemetry?.level || 1}</div>
+            <div className="text-[8px] font-mono text-slate-500">GRAVIDADE</div>
+            <div className="text-[11px] font-bold font-mono text-amber-400">
+              {gameState?.currentGravityMs ? `${gameState.currentGravityMs}ms` : '1000ms'}
+            </div>
             {telemetry && telemetry.combo > 0 && (
               <div className="text-[9px] text-pink-400 font-black animate-pulse">×{telemetry.combo} COMBO</div>
             )}

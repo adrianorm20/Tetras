@@ -515,6 +515,13 @@ export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
               </div>
             </div>
 
+            <div className="w-full pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono">
+              <span className="text-slate-500">GRAVIDADE:</span>
+              <span className="font-extrabold text-amber-400">
+                {gameState?.currentGravityMs ? `${gameState.currentGravityMs}ms` : '1000ms'}
+              </span>
+            </div>
+
             {telemetry && telemetry.combo > 0 && (
               <div className="flex items-center gap-1.5 px-3 py-1 bg-pink-500/20 border border-pink-500/40 rounded-full text-pink-400 text-xs font-black animate-pulse">
                 <Sparkles size={12} />

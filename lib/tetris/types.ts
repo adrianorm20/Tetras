@@ -25,6 +25,7 @@ export interface GameTelemetry {
   pps: number;
   apm: number;
   durationSeconds: number;
+  currentGravityMs?: number;
 }
 
 export interface TetrisState {
@@ -38,6 +39,7 @@ export interface TetrisState {
   incomingGarbage: number; // Linhas de lixo aguardando para subir
   isGameOver: boolean;
   isPaused: boolean;
+  currentGravityMs: number;
   lastClear: {
     lines: number;
     text: string;
