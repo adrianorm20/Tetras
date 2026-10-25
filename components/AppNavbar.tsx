@@ -19,10 +19,10 @@ export default function AppNavbar() {
         </div>
         <div>
           <span className="text-sm font-black text-white tracking-widest block font-mono">
-            TETR.IO <span className="text-cyan-400">ADRIANO</span>
+            TETRAS <span className="text-cyan-400">ADRIANO</span>
           </span>
           <span className="text-[10px] font-mono text-slate-500 block">
-            Competitive Engine • Neon DB
+            Competitive Engine
           </span>
         </div>
       </Link>

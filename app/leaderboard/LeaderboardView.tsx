@@ -57,11 +57,11 @@ export default function LeaderboardView() {
                 PLACAR <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-pink-500 to-cyan-400">GLOBAL</span>
               </h1>
               <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono">
-                Neon Postgres
+                Online
               </span>
             </div>
             <p className="text-xs font-mono text-slate-400">
-              HALL DA FAMA // TETR.IO ADRIANO LEADERBOARD
+              HALL DA FAMA // TETRAS ADRIANO LEADERBOARD
             </p>
           </div>
         </div>
@@ -201,7 +201,7 @@ export default function LeaderboardView() {
                   <td colSpan={6} className="py-12 text-center text-slate-400">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw className="animate-spin text-cyan-400" size={16} />
-                      <span>Carregando dados da tabela no Neon Postgres...</span>
+                      <span>Carregando dados da tabela...</span>
                     </div>
                   </td>
                 </tr>

@@ -39,7 +39,7 @@ export default function ModeSelection({ onStartSolo }: ModeSelectionProps) {
             </div>
 
             <p className="text-xs text-slate-400 font-mono mb-6 leading-relaxed">
-              Enfrente a gravidade progressiva, execute T-Spins SRS e suba no ranking global. Cada partida salva seu XP e High Score diretamente no Neon Database.
+              Enfrente a gravidade progressiva, execute T-Spins SRS e suba no ranking global. Cada partida salva seu XP e High Score diretamente na sua conta.
             </p>
 
             <div className="flex flex-col gap-2 p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 text-[11px] font-mono text-slate-300 mb-6">
@@ -121,7 +121,7 @@ export default function ModeSelection({ onStartSolo }: ModeSelectionProps) {
           <div className="flex items-center gap-3">
             <Shield size={20} className="text-cyan-400 shrink-0" />
             <div className="text-xs font-mono text-slate-300">
-              Faça login para salvar seus records, nível e disputar o ranking no Neon PostgreSQL!
+              Faça login para salvar seus records, nível e disputar o ranking global!
             </div>
           </div>
           <button

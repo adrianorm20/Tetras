@@ -5,7 +5,7 @@ import AuthModal from '@/components/AuthModal';
 import AppNavbar from '@/components/AppNavbar';
 
 export const metadata: Metadata = {
-  title: 'TETR.IO Adriano // Next.js Modern Tetris',
+  title: 'Tetras Adriano // Next.js Modern Tetris',
   description: 'Competitive web-based modern Tetris engine built with Next.js App Router, Tailwind CSS, and HTML5 Canvas.',
 };
 

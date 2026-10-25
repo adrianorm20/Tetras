@@ -26,7 +26,7 @@ export default function PlayerProfileCard({
     return (
       <div className="w-full bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-4 flex items-center justify-center gap-2 text-slate-400 text-xs font-mono">
         <RefreshCw className="animate-spin text-cyan-400" size={14} />
-        <span>Carregando dados do Neon Postgres...</span>
+        <span>Carregando dados do perfil...</span>
       </div>
     );
   }
@@ -53,7 +53,7 @@ export default function PlayerProfileCard({
             <div className="flex items-center gap-2">
               <h2 className="text-base font-extrabold text-white tracking-wide">{player.username}</h2>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono">
-                Neon Sync
+                Online
               </span>
             </div>
             <p className="text-xs font-mono text-slate-400 flex items-center gap-1.5 mt-0.5">
@@ -81,7 +81,7 @@ export default function PlayerProfileCard({
               onClick={onRefresh}
               disabled={loading}
               className="p-2 rounded-lg bg-slate-800/60 hover:bg-slate-700/80 text-slate-300 border border-slate-700/80 transition disabled:opacity-50"
-              title="Atualizar dados do Neon"
+              title="Atualizar dados"
             >
               <RefreshCw size={14} className={loading ? 'animate-spin text-cyan-400' : ''} />
             </button>

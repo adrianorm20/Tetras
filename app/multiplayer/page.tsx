@@ -221,7 +221,7 @@ export default function MultiplayerPage() {
         setCodeError(data.error || 'Código de sala inválido ou inexistente.');
       }
     } catch (err) {
-      setCodeError('Erro ao consultar sala no Neon Database.');
+      setCodeError('Erro ao consultar sala no servidor.');
     }
   };
 
@@ -314,11 +314,11 @@ export default function MultiplayerPage() {
               T
             </div>
             <h1 className="text-3xl sm:text-4xl font-black tracking-wider text-white">
-              TETR.IO <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-pink-500">MULTIPLAYER</span>
+              TETRAS <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-pink-500">MULTIPLAYER</span>
             </h1>
           </div>
           <p className="text-slate-400 text-xs font-mono tracking-widest uppercase">
-            Salas Públicas & Privadas com Neon PostgreSQL • Até 8 Jogadores
+            Salas Públicas & Privadas • Até 8 Jogadores
           </p>
         </div>
 
@@ -336,7 +336,7 @@ export default function MultiplayerPage() {
           </div>
           <div className="text-[11px] font-mono text-slate-500 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span>Sincronizado com Neon PostgreSQL</span>
+            <span>Servidor Online</span>
           </div>
         </div>
 
@@ -385,7 +385,7 @@ export default function MultiplayerPage() {
               disabled={isCreatingRoom}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-fuchsia-500 to-pink-500 text-slate-950 font-black text-xs tracking-wider uppercase shadow-[0_0_20px_rgba(217,70,239,0.3)] hover:brightness-110 transition disabled:opacity-50"
             >
-              {isCreatingRoom ? 'Criando no Neon...' : 'Gerar Sala & Iniciar'}
+              {isCreatingRoom ? 'Criando Sala...' : 'Gerar Sala & Iniciar'}
             </button>
           </div>
 
@@ -697,7 +697,7 @@ export default function MultiplayerPage() {
             {savingResults && (
               <span className="flex items-center gap-1.5 text-cyan-400 text-[11px]">
                 <RefreshCw size={12} className="animate-spin" />
-                Salvando no Neon...
+                Salvando resultados...
               </span>
             )}
           </div>

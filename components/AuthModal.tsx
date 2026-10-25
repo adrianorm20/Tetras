@@ -63,7 +63,7 @@ export default function AuthModal() {
               {tab === 'login' ? 'ENTRAR NA CONTA' : 'CRIAR NOVA CONTA'}
             </h3>
             <p className="text-xs font-mono text-slate-400">
-              Sincronização instantânea no Neon PostgreSQL
+              Sincronização instantânea de progresso
             </p>
           </div>
         </div>

@@ -450,9 +450,9 @@ export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
           </div>
           <div>
             <h1 className="text-xl font-black tracking-wider text-white">
-              TETR.IO <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-pink-500">ADRIANO</span>
+              TETRAS <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-pink-500">ADRIANO</span>
             </h1>
-            <p className="text-[10px] tracking-widest font-mono text-slate-400">NEXT.JS 60 FPS + NEON POSTGRES // ETAPA 2</p>
+            <p className="text-[10px] tracking-widest font-mono text-slate-400">NEXT.JS 60 FPS // ONLINE</p>
           </div>
         </div>
 
@@ -618,7 +618,7 @@ export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
                   {isSubmittingMatch ? (
                     <div className="flex items-center justify-center gap-1.5 text-cyan-400">
                       <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                      <span>Salvando no Neon DB...</span>
+                      <span>Salvando progresso...</span>
                     </div>
                   ) : matchResult ? (
                     <div className="flex flex-col gap-1 text-center">
@@ -637,7 +637,7 @@ export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
                       )}
                     </div>
                   ) : (
-                    <div className="text-slate-400 text-[11px]">Sincronizado com Neon Database</div>
+                    <div className="text-slate-400 text-[11px]">Sincronizado</div>
                   )}
                 </div>
 
