@@ -345,10 +345,17 @@ export class TetrisEngine {
       }
     }
 
-    if (!this.startTime) this.startTime = Date.now();
-    this.state.telemetry.piecesPlaced++;
-
     this.clearLines(isTSpin);
+
+    // Regra Tetr.io: se a peça foi travada sem limpar linhas, o lixo acumulado sobe no tabuleiro
+    // antes da próxima peça nascer!
+    if (this.state.incomingGarbage > 0) {
+      const garbageToPush = this.state.incomingGarbage;
+      this.state.incomingGarbage = 0;
+      this.pushGarbageLines(garbageToPush);
+      this.onSoundTrigger?.('garbage_rise');
+    }
+
     this.spawnNextPiece();
   }
 
@@ -453,13 +460,6 @@ export class TetrisEngine {
       // Se ainda restou lixo após a anulação e não limpou mais linhas, o lixo remanescente não sobe imediatamente neste turno com clear
     } else {
       this.state.telemetry.combo = -1;
-
-      // O lixo pendente na Garbage Queue só sobe no tabuleiro agora que a peça foi posicionada sem linha limpa
-      if (this.state.incomingGarbage > 0) {
-        this.pushGarbageLines(this.state.incomingGarbage);
-        this.onSoundTrigger?.('garbage_rise');
-        this.state.incomingGarbage = 0;
-      }
     }
   }
 
@@ -475,7 +475,7 @@ export class TetrisEngine {
     if (count <= 0 || this.state.isGameOver) return;
 
     // Regra Tetr.io: se ainda não tiver coluna de buraco definida, escolhe uma aleatória (0 a 9).
-    // Para blocos de linhas recebidas juntos (ou sucessivos), mantém a mesma coluna ou desvia no máximo 1 coluna com 20% de chance.
+    // Para blocos de linhas recebidas juntos (ou sucessivos), mantém a mesma coluna ou desvia no máximo 1 coluna com 15% de chance.
     if (this.lastGarbageHoleCol < 0 || this.lastGarbageHoleCol >= COLS) {
       this.lastGarbageHoleCol = Math.floor(Math.random() * COLS);
     }
@@ -491,22 +491,31 @@ export class TetrisEngine {
         }
       }
 
+      // Remove a linha do topo e empurra uma nova linha de lixo na base
       this.state.matrix.shift();
       const garbageRow: (PieceType | 0)[] = Array(COLS).fill('G');
       garbageRow[this.lastGarbageHoleCol] = 0;
       this.state.matrix.push(garbageRow);
     }
 
+    // Se houver peça ativa em movimento quando o lixo sobe, empurra ela para cima na mesma proporção
     if (this.state.currentPiece) {
-      if (this.checkCollision(this.state.currentPiece.type, this.state.currentPiece.rotation, this.state.currentPiece.x, this.state.currentPiece.y)) {
-        this.state.currentPiece.y = Math.max(0, this.state.currentPiece.y - count);
-        if (this.checkCollision(this.state.currentPiece.type, this.state.currentPiece.rotation, this.state.currentPiece.x, this.state.currentPiece.y)) {
-          this.state.isGameOver = true;
-          this.onSoundTrigger?.('gameover');
-        }
+      this.state.currentPiece.y -= count;
+
+      // Se a peça foi empurrada para cima de y = 0 ou colidiu, tenta reposicioná-la para cima
+      while (this.checkCollision(this.state.currentPiece.type, this.state.currentPiece.rotation, this.state.currentPiece.x, this.state.currentPiece.y) && this.state.currentPiece.y > -4) {
+        this.state.currentPiece.y--;
       }
+
+      // Só dá game over se nem mesmo acima da matriz foi possível descolidir (bloqueio total real de topo)
+      if (this.checkCollision(this.state.currentPiece.type, this.state.currentPiece.rotation, this.state.currentPiece.x, this.state.currentPiece.y)) {
+        this.state.isGameOver = true;
+        this.onSoundTrigger?.('gameover');
+      }
+
       this.state.ghostY = this.computeGhostY(this.state.currentPiece);
     }
+
     this.notify();
   }
 

@@ -30,7 +30,6 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
   // Garbage warning flash state & countdown timer
   const [garbageFlash, setGarbageFlash] = useState(false);
   const [garbageQueue, setGarbageQueue] = useState<{ lines: number; countdown: number }[]>([]);
-  const pendingGarbageRef = useRef(0);
   const [isShaking, setIsShaking] = useState(false);
 
   // Line flash animation state & floating particles
@@ -43,41 +42,38 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
   const ARR_RATE = 30;
   const SOFT_DROP_RATE = 40; // ms por drop fluido
 
-  // Sync incoming garbage from server to engine with countdown delay (defense window)
+  // Sync incoming garbage from server directly into engine and UI queue
   useEffect(() => {
     if (multiplayer.incomingGarbage > 0) {
       const addedLines = multiplayer.incomingGarbage;
       multiplayer.consumeGarbage();
 
+      // Alimenta o engine imediatamente para defesa/cancelling ativa
+      if (engineRef.current && !engineRef.current.state.isGameOver) {
+        engineRef.current.addIncomingGarbage(addedLines);
+      }
+
       setGarbageFlash(true);
       setTimeout(() => setGarbageFlash(false), 800);
 
-      // Se o lixo na fila for alto (>= 4 linhas), toca o som de Alerta/Perigo
+      // Se o lixo na fila for alto (>= 3 linhas), toca o som de Alerta/Perigo
       if (audio.enabled && addedLines >= 3) {
         audio.playDangerAlert();
       }
 
-      // Add to garbage queue with 2.5s defense grace period
+      // Adiciona na fila visual com timer de carência de 2.5s (Tetr.io defense window)
       setGarbageQueue(prev => [...prev, { lines: addedLines, countdown: 2.5 }]);
     }
   }, [multiplayer.incomingGarbage, multiplayer]);
 
-  // Countdown timer for pending garbage
+  // Countdown timer para atualizar o badge de tempo da fila de lixo
   useEffect(() => {
     if (garbageQueue.length === 0) return;
     const interval = setInterval(() => {
       setGarbageQueue(prev => {
-        const next: { lines: number; countdown: number }[] = [];
-        for (const item of prev) {
-          const updated = item.countdown - 0.2;
-          if (updated <= 0) {
-            // Defense window expired: push to pending garbage
-            pendingGarbageRef.current += item.lines;
-          } else {
-            next.push({ lines: item.lines, countdown: Math.max(0, updated) });
-          }
-        }
-        return next;
+        return prev
+          .map(item => ({ ...item, countdown: Math.max(0, item.countdown - 0.2) }))
+          .filter(item => item.countdown > 0);
       });
     }, 200);
 
@@ -208,12 +204,6 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
         }
       } else {
         ks.softDropTimer = 0;
-      }
-
-      // Apply pending garbage whose defense window has passed
-      if (pendingGarbageRef.current > 0 && !engine.state.isGameOver) {
-        engine.addIncomingGarbage(pendingGarbageRef.current);
-        pendingGarbageRef.current = 0;
       }
 
       // Update particles
@@ -411,8 +401,9 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
   };
 
   const telemetry = gameState?.telemetry;
-  const totalQueuedGarbage = garbageQueue.reduce((acc, q) => acc + q.lines, 0) + pendingGarbageRef.current;
-  const earliestCountdown = garbageQueue.length > 0 ? Math.min(...garbageQueue.map(q => q.countdown)) : null;
+  // O total de lixo acumulado reflete exatamente o estado interno do motor (incomingGarbage)
+  const totalQueuedGarbage = gameState?.incomingGarbage ?? 0;
+  const earliestCountdown = garbageQueue.length > 0 && totalQueuedGarbage > 0 ? Math.min(...garbageQueue.map(q => q.countdown)) : null;
 
   return (
     <div className="flex flex-col items-center gap-2 select-none">
