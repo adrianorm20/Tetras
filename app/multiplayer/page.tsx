@@ -572,43 +572,178 @@ export default function MultiplayerPage() {
     );
   }
 
-  // ── RESULTS / PODIUM ───────────────────────────────────────────────────────
+  // ── RESULTS / ENRICHED PODIUM ─────────────────────────────────────────────
   if (phase === 'finished' && mp.matchResult) {
     const ranking = mp.matchResult.ranking;
+    const winner = mp.matchResult.winner || ranking[0];
+
     return (
-      <main className="min-h-screen flex flex-col items-center justify-center p-6 gap-6 relative">
-        <div className="text-center">
-          <div className="text-5xl mb-2">🏆</div>
-          <h1 className="text-3xl font-black text-white tracking-wider">PÓDIO DA ARENA</h1>
-          <p className="text-slate-400 text-xs font-mono uppercase">Sala: {mp.matchResult.roomId}</p>
+      <main className="min-h-screen flex flex-col items-center justify-start p-4 sm:p-6 gap-6 relative max-w-4xl mx-auto animate-fadeIn">
+        {/* Confetti / Glow Header */}
+        <div className="text-center relative">
+          <div className="inline-flex p-3 rounded-3xl bg-amber-500/10 border border-amber-500/30 text-amber-400 mb-2 shadow-[0_0_30px_rgba(255,214,10,0.35)] animate-bounce">
+            <Trophy size={42} />
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-black text-white tracking-wider">
+            PÓDIO DA <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-pink-500 to-cyan-400">ARENA</span>
+          </h1>
+          <p className="text-slate-400 text-xs font-mono uppercase tracking-widest mt-1">
+            Sala: <span className="text-cyan-400">{mp.matchResult.roomId}</span> • Classificação Final da Partida
+          </p>
         </div>
 
-        <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-3">
-          {ranking.map((p, idx) => (
-            <div
-              key={p.username}
-              className={`flex items-center justify-between p-3 rounded-2xl border ${
-                idx === 0
-                  ? 'bg-amber-500/10 border-amber-500/40 text-amber-400'
-                  : 'bg-slate-950/70 border-slate-800/80 text-slate-300'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <span className="font-mono font-black text-sm">#{idx + 1}</span>
-                <div>
-                  <div className="text-xs font-black">{p.username}</div>
-                  <div className="text-[10px] font-mono text-slate-500">{p.lines} linhas • {p.score} pts</div>
+        {/* 1º Lugar - Campeão em Destaque Maior */}
+        {winner && (
+          <div className="w-full bg-gradient-to-b from-amber-500/20 via-slate-900/95 to-slate-950 border-2 border-amber-400/80 rounded-3xl p-6 sm:p-8 shadow-[0_0_40px_rgba(255,214,10,0.35)] flex flex-col sm:flex-row items-center justify-between gap-6 relative overflow-hidden">
+            {/* Background glowing particles/shine */}
+            <div className="absolute -top-24 -left-24 w-48 h-48 bg-amber-400/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-yellow-500/20 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="flex items-center gap-5 z-10">
+              <div className="relative">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center shadow-[0_0_25px_rgba(255,214,10,0.6)]">
+                  <Crown size={40} className="text-slate-950" />
+                </div>
+                <span className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 font-black text-xs font-mono shadow">
+                  #1
+                </span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl sm:text-3xl font-black text-amber-300 tracking-wide drop-shadow-[0_0_12px_rgba(255,214,10,0.6)]">
+                    {winner.username}
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[10px] font-extrabold uppercase tracking-widest">
+                    Vencedor
+                  </span>
+                </div>
+                <div className="text-sm font-mono text-slate-300 mt-1">
+                  Pontuação Final: <strong className="text-amber-400 font-bold">{winner.score.toLocaleString()} PTS</strong>
                 </div>
               </div>
-              {idx === 0 && <Crown size={18} className="text-amber-400" />}
             </div>
-          ))}
+
+            {/* Winner Stats highlight grid */}
+            <div className="grid grid-cols-3 gap-3 w-full sm:w-auto z-10">
+              <div className="bg-slate-950/80 border border-amber-500/40 rounded-2xl p-3 text-center min-w-[90px]">
+                <div className="text-[10px] font-mono text-amber-300/80">LINHAS ENV.</div>
+                <div className="text-lg font-black font-mono text-amber-300 mt-0.5">+{winner.linesSent ?? 0}</div>
+              </div>
+              <div className="bg-slate-950/80 border border-amber-500/40 rounded-2xl p-3 text-center min-w-[90px]">
+                <div className="text-[10px] font-mono text-amber-300/80">K.O.s</div>
+                <div className="text-lg font-black font-mono text-rose-400 mt-0.5">⚔️ {winner.kos ?? 0}</div>
+              </div>
+              <div className="bg-slate-950/80 border border-amber-500/40 rounded-2xl p-3 text-center min-w-[90px]">
+                <div className="text-[10px] font-mono text-amber-300/80">XP GANHO</div>
+                <div className="text-lg font-black font-mono text-cyan-300 mt-0.5">
+                  +{dbResults?.results?.find(r => r.username === winner.username)?.earnedXp ?? (Math.floor(winner.score / 40) + 250)}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Lista Completa de Classificação (1º ao 8º) com Estatísticas Detalhadas */}
+        <div className="w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col gap-3">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-xs font-mono text-slate-400 uppercase tracking-wider">
+            <span>Classificação Completa</span>
+            {savingResults && (
+              <span className="flex items-center gap-1.5 text-cyan-400 text-[11px]">
+                <RefreshCw size={12} className="animate-spin" />
+                Salvando no Neon...
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2.5">
+            {ranking.map((p, idx) => {
+              const isFirst = idx === 0;
+              const isSecond = idx === 1;
+              const isThird = idx === 2;
+              const earnedXp = dbResults?.results?.find(r => r.username === p.username)?.earnedXp;
+
+              return (
+                <div
+                  key={p.username}
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between p-3.5 sm:p-4 rounded-2xl border transition ${
+                    isFirst
+                      ? 'bg-amber-500/10 border-amber-500/50 shadow-[0_0_15px_rgba(255,214,10,0.15)]'
+                      : isSecond
+                      ? 'bg-slate-800/40 border-slate-600/60'
+                      : isThird
+                      ? 'bg-amber-950/20 border-amber-700/50'
+                      : 'bg-slate-950/60 border-slate-800/70'
+                  }`}
+                >
+                  {/* Posição e Nome */}
+                  <div className="flex items-center gap-3.5 mb-2 sm:mb-0">
+                    <span
+                      className={`w-8 h-8 rounded-xl flex items-center justify-center font-mono font-black text-sm ${
+                        isFirst
+                          ? 'bg-amber-400 text-slate-950 shadow-[0_0_10px_rgba(255,214,10,0.5)]'
+                          : isSecond
+                          ? 'bg-slate-300 text-slate-950'
+                          : isThird
+                          ? 'bg-amber-700 text-white'
+                          : 'bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      #{idx + 1}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-black text-white">{p.username}</span>
+                        {p.username === username && (
+                          <span className="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[9px] font-mono">
+                            VOCÊ
+                          </span>
+                        )}
+                        {isFirst && <Crown size={15} className="text-amber-400 inline" />}
+                      </div>
+                      <div className="text-[11px] font-mono text-slate-400">
+                        {p.score.toLocaleString()} pts • {p.lines} linhas limpas
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Estatísticas Detalhadas: Enviadas, Recebidas, KOs e XP */}
+                  <div className="grid grid-cols-4 gap-2 sm:gap-4 text-center font-mono text-xs">
+                    {/* Linhas Enviadas */}
+                    <div className="bg-slate-900/80 sm:bg-transparent rounded-lg p-1.5 sm:p-0">
+                      <div className="text-[9px] text-slate-500 uppercase">Enviadas</div>
+                      <div className="font-bold text-amber-400">+{p.linesSent ?? 0}L</div>
+                    </div>
+
+                    {/* Linhas Recebidas */}
+                    <div className="bg-slate-900/80 sm:bg-transparent rounded-lg p-1.5 sm:p-0">
+                      <div className="text-[9px] text-slate-500 uppercase">Recebidas</div>
+                      <div className="font-bold text-rose-400">-{p.linesReceived ?? 0}L</div>
+                    </div>
+
+                    {/* K.O.s Eliminados */}
+                    <div className="bg-slate-900/80 sm:bg-transparent rounded-lg p-1.5 sm:p-0">
+                      <div className="text-[9px] text-slate-500 uppercase">K.O.s</div>
+                      <div className="font-bold text-slate-200">⚔️ {p.kos ?? 0}</div>
+                    </div>
+
+                    {/* XP Ganho */}
+                    <div className="bg-slate-900/80 sm:bg-transparent rounded-lg p-1.5 sm:p-0">
+                      <div className="text-[9px] text-slate-500 uppercase">XP Ganho</div>
+                      <div className="font-bold text-cyan-300">
+                        +{earnedXp ?? (Math.floor(p.score / 40) + p.lines * 15 + (isFirst ? 250 : isSecond ? 150 : 50))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
           <button
             onClick={handleLeave}
-            className="w-full py-3 mt-4 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg hover:brightness-110 transition"
+            className="w-full py-3.5 mt-4 rounded-xl bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-500 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg hover:brightness-110 transition flex items-center justify-center gap-2"
           >
-            Voltar ao Lobby
+            <span>Voltar ao Lobby Multiplayer</span>
           </button>
         </div>
       </main>

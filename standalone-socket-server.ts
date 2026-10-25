@@ -16,6 +16,10 @@ interface PlayerSession {
   targetId: string | null;
   targetingMode: TargetingStrategy;
   incomingGarbage: number;
+  linesSent: number;
+  linesReceived: number;
+  kos: number;
+  lastAttackerId: string | null;
 }
 
 const rooms: Record<string, Record<string, PlayerSession>> = {};
@@ -77,6 +81,10 @@ io.on('connection', (socket: Socket) => {
       targetId: null,
       targetingMode: 'leader',
       incomingGarbage: 0,
+      linesSent: 0,
+      linesReceived: 0,
+      kos: 0,
+      lastAttackerId: null,
     };
 
     console.log(`[Multiplayer] ${currentUsername} (${socket.id}) entrou na sala ${roomKey}. Total: ${Object.keys(rooms[roomKey]).length}/8`);
@@ -86,10 +94,15 @@ io.on('connection', (socket: Socket) => {
   socket.on('update_matrix', ({ matrix, score, lines, isAlive }: { matrix: (PieceType | 0 | 'G')[][]; score: number; lines: number; isAlive: boolean }) => {
     if (!currentRoomId || !rooms[currentRoomId] || !rooms[currentRoomId][socket.id]) return;
     const player = rooms[currentRoomId][socket.id];
+    const previouslyAlive = player.isAlive;
     player.matrix = matrix;
     player.score = score;
     player.lines = lines;
     player.isAlive = isAlive;
+
+    if (previouslyAlive && !isAlive && player.lastAttackerId && rooms[currentRoomId][player.lastAttackerId]) {
+      rooms[currentRoomId][player.lastAttackerId].kos += 1;
+    }
 
     socket.to(currentRoomId).emit('player_updated', {
       id: socket.id,
@@ -99,6 +112,9 @@ io.on('connection', (socket: Socket) => {
       lines,
       isAlive,
       incomingGarbage: player.incomingGarbage,
+      linesSent: player.linesSent,
+      linesReceived: player.linesReceived,
+      kos: player.kos,
     });
 
     if (!isAlive) {
@@ -122,10 +138,13 @@ io.on('connection', (socket: Socket) => {
     const attacker = room[socket.id];
     if (!attacker || !attacker.isAlive || lines <= 0) return;
 
+    attacker.linesSent += lines;
     const target = resolveTarget(socket.id, room, attacker.targetingMode, attacker.targetId);
 
     if (target) {
       target.incomingGarbage += lines;
+      target.linesReceived += lines;
+      target.lastAttackerId = socket.id;
 
       const attackPayload: AttackEvent = {
         fromId: socket.id,
@@ -188,6 +207,9 @@ function broadcastRoomState(roomId: string) {
     isAlive: p.isAlive,
     isTargetedByYou: false,
     incomingGarbage: p.incomingGarbage,
+    linesSent: p.linesSent,
+    linesReceived: p.linesReceived,
+    kos: p.kos,
   }));
 
   io.to(roomId).emit('room_state', {
@@ -217,6 +239,9 @@ function checkMatchFinished(roomId: string) {
       score: p.score,
       lines: p.lines,
       won: idx === 0,
+      linesSent: p.linesSent,
+      linesReceived: p.linesReceived,
+      kos: p.kos,
     }));
 
     io.to(roomId).emit('match_finished', {

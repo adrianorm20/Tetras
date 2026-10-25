@@ -13,7 +13,7 @@ export class TetrisEngine {
   private startTime: number | null = null;
   private lastMoveWasRotate = false;
   public onStateChange?: (state: TetrisState) => void;
-  public onSoundTrigger?: (sound: 'move' | 'rotate' | 'drop' | 'hold' | 'clear' | 'tetris' | 'tspin' | 'gameover') => void;
+  public onSoundTrigger?: (sound: 'move' | 'rotate' | 'drop' | 'hold' | 'clear' | 'tetris' | 'tspin' | 'gameover' | 'garbage_rise') => void;
   public onGarbageSent?: (lines: number, clearType: 'single' | 'double' | 'triple' | 'tetris' | 'combo' | 'tspin' | 'quad') => void;
 
   constructor() {
@@ -457,6 +457,7 @@ export class TetrisEngine {
       // O lixo pendente na Garbage Queue só sobe no tabuleiro agora que a peça foi posicionada sem linha limpa
       if (this.state.incomingGarbage > 0) {
         this.pushGarbageLines(this.state.incomingGarbage);
+        this.onSoundTrigger?.('garbage_rise');
         this.state.incomingGarbage = 0;
       }
     }
@@ -468,14 +469,31 @@ export class TetrisEngine {
     this.notify();
   }
 
+  private lastGarbageHoleCol: number = -1;
+
   public pushGarbageLines(count: number) {
     if (count <= 0 || this.state.isGameOver) return;
-    const holeCol = Math.floor(Math.random() * COLS);
+
+    // Regra Tetr.io: se ainda não tiver coluna de buraco definida, escolhe uma aleatória (0 a 9).
+    // Para blocos de linhas recebidas juntos (ou sucessivos), mantém a mesma coluna ou desvia no máximo 1 coluna com 20% de chance.
+    if (this.lastGarbageHoleCol < 0 || this.lastGarbageHoleCol >= COLS) {
+      this.lastGarbageHoleCol = Math.floor(Math.random() * COLS);
+    }
 
     for (let i = 0; i < count; i++) {
+      // 85% de chance de manter a MESMA coluna (formando abertura vertical limpa como Tetr.io)
+      // 15% de chance de mover suavemente para esquerda/direita se houver espaço
+      if (Math.random() > 0.85) {
+        const delta = Math.random() < 0.5 ? -1 : 1;
+        const newCol = this.lastGarbageHoleCol + delta;
+        if (newCol >= 0 && newCol < COLS) {
+          this.lastGarbageHoleCol = newCol;
+        }
+      }
+
       this.state.matrix.shift();
       const garbageRow: (PieceType | 0)[] = Array(COLS).fill('G');
-      garbageRow[holeCol] = 0;
+      garbageRow[this.lastGarbageHoleCol] = 0;
       this.state.matrix.push(garbageRow);
     }
 

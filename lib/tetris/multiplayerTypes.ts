@@ -11,6 +11,9 @@ export interface OpponentState {
   isAlive: boolean;
   isTargetedByYou: boolean;
   incomingGarbage: number; // Linhas de lixo na fila para receber
+  linesSent?: number;
+  linesReceived?: number;
+  kos?: number;
 }
 
 export interface AttackEvent {

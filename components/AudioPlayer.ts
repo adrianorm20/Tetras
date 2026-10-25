@@ -84,6 +84,57 @@ export class AudioPlayer {
       setTimeout(() => this.playTone(f, 'sawtooth', 0.2, 0.2), idx * 90);
     });
   }
+
+  /**
+   * Som de Alerta / Perigo (Danger Alert) - quando a barra de lixo acumula 4+ linhas
+   */
+  public playDangerAlert() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(880, now);
+      osc.frequency.exponentialRampToValueAtTime(440, now + 0.18);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.18);
+    } catch {
+      // Audio autoplay policy fallback
+    }
+  }
+
+  /**
+   * Som de impacto seco quando as linhas cinzas sobem no tabuleiro (Impact / Rise)
+   */
+  public playGarbageRise() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      // Golpe grave de impacto percussivo
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.exponentialRampToValueAtTime(40, now + 0.22);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.22);
+    } catch {
+      // Audio autoplay policy fallback
+    }
+  }
 }
 
 export const audio = new AudioPlayer();

@@ -31,6 +31,7 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
   const [garbageFlash, setGarbageFlash] = useState(false);
   const [garbageQueue, setGarbageQueue] = useState<{ lines: number; countdown: number }[]>([]);
   const pendingGarbageRef = useRef(0);
+  const [isShaking, setIsShaking] = useState(false);
 
   // Line flash animation state & floating particles
   const [clearedRowsFlash, setClearedRowsFlash] = useState<number[]>([]);
@@ -50,6 +51,11 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
 
       setGarbageFlash(true);
       setTimeout(() => setGarbageFlash(false), 800);
+
+      // Se o lixo na fila for alto (>= 4 linhas), toca o som de Alerta/Perigo
+      if (audio.enabled && addedLines >= 3) {
+        audio.playDangerAlert();
+      }
 
       // Add to garbage queue with 2.5s defense grace period
       setGarbageQueue(prev => [...prev, { lines: addedLines, countdown: 2.5 }]);
@@ -164,6 +170,11 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
         case 'tetris': audio.playTetris(); break;
         case 'tspin': audio.playTSpin(); break;
         case 'gameover': audio.playGameOver(); break;
+        case 'garbage_rise':
+          audio.playGarbageRise();
+          setIsShaking(true);
+          setTimeout(() => setIsShaking(false), 220);
+          break;
       }
     };
 
@@ -432,37 +443,63 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
           </div>
         </div>
 
-        {/* Main board with garbage indicator */}
+        {/* Main board with permanent Garbage Queue indicator */}
         <div className="relative flex items-center">
-          {/* Garbage Queue Warning Bar with Countdown */}
-          {totalQueuedGarbage > 0 && (
-            <div className="flex flex-col items-center mr-1">
-              {/* Countdown timer badge */}
-              {earliestCountdown !== null && (
-                <div className="text-[9px] font-mono font-black text-rose-400 animate-pulse bg-rose-950/80 px-1 py-0.5 rounded border border-rose-500/50 mb-1">
+          {/* Permanent Garbage Queue Bar (Tetr.io Style) */}
+          <div className="flex flex-col items-center mr-1.5 self-stretch justify-end">
+            {/* Countdown timer badge - appears above bar when garbage is incoming */}
+            <div className="h-5 flex items-center justify-center mb-1">
+              {earliestCountdown !== null && totalQueuedGarbage > 0 ? (
+                <div className="text-[9px] font-mono font-black text-rose-400 animate-pulse bg-rose-950/90 px-1 py-0.5 rounded border border-rose-500/60 shadow-[0_0_10px_rgba(244,63,94,0.6)]">
                   {earliestCountdown.toFixed(1)}s
                 </div>
+              ) : (
+                <div className="text-[8px] font-mono text-slate-600 uppercase tracking-tighter">
+                  QUEUE
+                </div>
               )}
-              {/* Flashing Warning Bar with Gray and Red Blocks */}
-              <div
-                className={`w-3.5 h-[520px] flex flex-col-reverse rounded-l-lg overflow-hidden border border-rose-500/60 bg-slate-900/90 shadow-[0_0_15px_rgba(244,63,94,0.4)] ${
-                  garbageFlash ? 'animate-pulse ring-2 ring-rose-500' : ''
-                }`}
-              >
-                {Array.from({ length: Math.min(totalQueuedGarbage, 20) }).map((_, i) => (
+            </div>
+
+            {/* Permanent Track Bar: 20 slots high (520px = 20 * 26px) with red/orange glow */}
+            <div
+              className={`w-3.5 h-[520px] flex flex-col-reverse rounded-l-md overflow-hidden border transition-all duration-200 ${
+                garbageFlash
+                  ? 'border-rose-400 bg-rose-950/60 ring-2 ring-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.8)]'
+                  : totalQueuedGarbage > 0
+                  ? 'border-rose-500/70 bg-slate-950/90 shadow-[0_0_15px_rgba(244,63,94,0.35)]'
+                  : 'border-slate-800 bg-slate-950/60'
+              }`}
+            >
+              {Array.from({ length: 20 }).map((_, i) => {
+                const isFilled = i < Math.min(totalQueuedGarbage, 20);
+                const isUrgent = earliestCountdown !== null && earliestCountdown < 1.0;
+                return (
                   <div
                     key={i}
-                    className="flex-1 bg-gradient-to-t from-slate-600 to-rose-500/90 border-t border-slate-700/80 animate-pulse"
-                    style={{ animationDuration: `${0.4 + (i % 3) * 0.2}s` }}
+                    className={`h-[26px] w-full border-t transition-colors duration-150 ${
+                      isFilled
+                        ? isUrgent
+                          ? 'bg-rose-500 border-rose-300 shadow-[0_0_8px_rgba(244,63,94,0.9)] animate-pulse'
+                          : 'bg-gradient-to-t from-red-600 to-orange-500 border-red-400/80'
+                        : 'border-slate-900/60 bg-transparent'
+                    }`}
                   />
-                ))}
-              </div>
-              <div className="text-[8px] font-mono font-bold text-rose-400 mt-1">+{totalQueuedGarbage}L</div>
+                );
+              })}
             </div>
-          )}
+
+            {/* Bottom counter label */}
+            <div className="h-4 flex items-center justify-center mt-1">
+              <span className={`text-[8px] font-mono font-black ${totalQueuedGarbage > 0 ? 'text-rose-400 drop-shadow-[0_0_6px_rgba(244,63,94,0.8)] animate-pulse' : 'text-slate-600'}`}>
+                {totalQueuedGarbage > 0 ? `+${totalQueuedGarbage}L` : '0L'}
+              </span>
+            </div>
+          </div>
 
           <div
-            className={`relative bg-slate-950/95 border-2 rounded-xl overflow-hidden transition-colors duration-150 ${
+            className={`relative bg-slate-950/95 border-2 rounded-xl overflow-hidden transition-all duration-150 ${
+              isShaking ? 'translate-y-1 animate-pulse' : ''
+            } ${
               garbageFlash ? 'border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.7)]' : 'border-cyan-500/30 shadow-[0_0_20px_rgba(0,242,254,0.15)]'
             }`}
           >
@@ -470,7 +507,9 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
               ref={matrixCanvasRef}
               width={COLS * BLOCK_SIZE}
               height={ROWS * BLOCK_SIZE}
-              className="block bg-[#070913]"
+              className={`block bg-[#070913] transition-transform duration-75 ${
+                isShaking ? 'translate-y-0.5 scale-[0.995]' : ''
+              }`}
             />
 
             {/* Action clear text (T-SPIN / QUAD / COMBOS) */}

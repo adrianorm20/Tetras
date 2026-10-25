@@ -11,10 +11,21 @@ export interface MultiplayerRoomData {
   players: OpponentState[];
 }
 
+export interface MatchFinishedPlayer {
+  username: string;
+  rank: number;
+  score: number;
+  lines: number;
+  won: boolean;
+  linesSent: number;
+  linesReceived: number;
+  kos: number;
+}
+
 export interface MatchFinishedData {
   roomId: string;
-  winner: { username: string; rank: number; score: number; lines: number; won: boolean };
-  ranking: { username: string; rank: number; score: number; lines: number; won: boolean }[];
+  winner: MatchFinishedPlayer;
+  ranking: MatchFinishedPlayer[];
 }
 
 export interface UseMultiplayerReturn {

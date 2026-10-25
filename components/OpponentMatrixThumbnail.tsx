@@ -73,11 +73,22 @@ export default function OpponentMatrixThumbnail({
         )}
       </div>
 
-      {/* Miniatura Canvas */}
-      <div className="relative rounded-lg overflow-hidden border border-slate-800/80">
-        <canvas ref={canvasRef} width={70} height={140} className="block transition-all duration-700" />
+      {/* Miniatura Canvas com Barra de Lixo Lateral */}
+      <div className="relative flex items-center rounded-lg overflow-hidden border border-slate-800/80 bg-[#070913]">
+        {/* Barra de lixo do oponente (lateral esquerda, estilo Tetr.io) */}
+        <div className="w-1.5 h-[140px] bg-slate-900 border-r border-slate-800 flex flex-col-reverse overflow-hidden">
+          {opponent.incomingGarbage > 0 && (
+            <div
+              className="w-full bg-gradient-to-t from-rose-600 to-amber-500 transition-all duration-150 animate-pulse"
+              style={{ height: `${Math.min(100, (opponent.incomingGarbage / 20) * 100)}%` }}
+            />
+          )}
+        </div>
+
+        <canvas ref={canvasRef} width={70} height={140} className="block" />
+
         {!opponent.isAlive && (
-          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-[2px] flex flex-col items-center justify-center text-rose-500 animate-fadeIn">
+          <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-[2px] flex flex-col items-center justify-center text-rose-500 animate-fadeIn z-10">
             {/* KO Explosion burst particles effect */}
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
               <span className="w-12 h-12 rounded-full bg-rose-500/20 animate-ping absolute" />
@@ -92,9 +103,14 @@ export default function OpponentMatrixThumbnail({
         )}
       </div>
 
-      {/* Score */}
-      <div className="text-[9px] font-mono text-slate-400 mt-1">
-        {opponent.isAlive ? `${opponent.score.toLocaleString()} pts` : <span className="text-slate-500">ESPECTADOR</span>}
+      {/* Stats footer (Score & K.O.s) */}
+      <div className="w-full flex items-center justify-between text-[9px] font-mono text-slate-400 mt-1 px-1">
+        <span>{opponent.isAlive ? `${opponent.score.toLocaleString()} pts` : <span className="text-slate-500">K.O.</span>}</span>
+        {(opponent.kos ?? 0) > 0 && (
+          <span className="text-amber-400 font-bold flex items-center gap-0.5">
+            ⚔️{opponent.kos}
+          </span>
+        )}
       </div>
     </div>
   );
