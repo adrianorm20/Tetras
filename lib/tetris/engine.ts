@@ -463,6 +463,11 @@ export class TetrisEngine {
         }
       }
 
+      // Ao limpar linhas, reseta a chaminé para que o próximo lixo reavalie a melhor coluna
+      if (linesCleared > 0) {
+        this.resetGarbageChimney();
+      }
+
       // Se ainda restou lixo após a anulação e não limpou mais linhas, o lixo remanescente não sobe imediatamente neste turno com clear
     } else {
       this.state.telemetry.combo = -1;
@@ -476,45 +481,101 @@ export class TetrisEngine {
   }
 
   private lastGarbageHoleCol: number = -1;
+  private garbageChimneyLockCount: number = 0; // Quantas linhas seguidas mantemos a mesma chaminé
+
+  /**
+   * Calcula a altura da pilha em cada coluna (nº de células preenchidas de baixo para cima).
+   * Retorna array[COLS] com a altura de cada coluna.
+   */
+  private getColumnHeights(): number[] {
+    const heights: number[] = Array(COLS).fill(0);
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < ROWS; r++) {
+        if (this.state.matrix[r][c] !== 0) {
+          heights[c] = ROWS - r; // altura da pilha nessa coluna
+          break;
+        }
+      }
+    }
+    return heights;
+  }
+
+  /**
+   * Escolhe a melhor coluna para o buraco do lixo (Accessible Hole).
+   * Prioriza colunas com MENOR altura de pilha (mais acessíveis verticalmente).
+   * Dentre as melhores, escolhe a mais próxima da coluna atual (chaminé estável).
+   */
+  private pickAccessibleGarbageHole(): number {
+    const heights = this.getColumnHeights();
+
+    // Monta um ranking das colunas pela menor altura (mais acessível = mais baixa)
+    const sorted = Array.from({ length: COLS }, (_, i) => i)
+      .sort((a, b) => heights[a] - heights[b]);
+
+    // Candidatos: as 3 colunas mais baixas (acessíveis)
+    const topCandidates = sorted.slice(0, 3);
+
+    // Dentre os candidatos, preferimos o mais próximo da coluna atual (chaminé estável)
+    if (this.lastGarbageHoleCol >= 0) {
+      topCandidates.sort(
+        (a, b) =>
+          Math.abs(a - this.lastGarbageHoleCol) -
+          Math.abs(b - this.lastGarbageHoleCol)
+      );
+    }
+
+    return topCandidates[0];
+  }
 
   public pushGarbageLines(count: number) {
     if (count <= 0 || this.state.isGameOver) return;
 
-    // Regra Tetr.io: se ainda não tiver coluna de buraco definida, escolhe uma aleatória (0 a 9).
-    // Para blocos de linhas recebidas juntos (ou sucessivos), mantém a mesma coluna ou desvia no máximo 1 coluna com 15% de chance.
+    // Inicializa a coluna-buraco na primeira vez
     if (this.lastGarbageHoleCol < 0 || this.lastGarbageHoleCol >= COLS) {
-      this.lastGarbageHoleCol = Math.floor(Math.random() * COLS);
+      this.lastGarbageHoleCol = this.pickAccessibleGarbageHole();
+      this.garbageChimneyLockCount = 0;
     }
 
     for (let i = 0; i < count; i++) {
-      // 85% de chance de manter a MESMA coluna (formando abertura vertical limpa como Tetr.io)
-      // 15% de chance de mover suavemente para esquerda/direita se houver espaço
-      if (Math.random() > 0.85) {
-        const delta = Math.random() < 0.5 ? -1 : 1;
-        const newCol = this.lastGarbageHoleCol + delta;
-        if (newCol >= 0 && newCol < COLS) {
-          this.lastGarbageHoleCol = newCol;
-        }
+      // Mantemos a chaminé estável por até 4 linhas consecutivas de lixo.
+      // Após esse ciclo, reavaliamos a melhor coluna acessível.
+      if (this.garbageChimneyLockCount >= 4) {
+        this.lastGarbageHoleCol = this.pickAccessibleGarbageHole();
+        this.garbageChimneyLockCount = 0;
+      } else {
+        this.garbageChimneyLockCount++;
       }
 
-      // Remove a linha do topo e empurra uma nova linha de lixo na base
+      // Remove a linha do topo e empurra nova linha de lixo na base com buraco acessível
       this.state.matrix.shift();
       const garbageRow: (PieceType | 0)[] = Array(COLS).fill('G');
       garbageRow[this.lastGarbageHoleCol] = 0;
       this.state.matrix.push(garbageRow);
     }
 
-    // Se houver peça ativa em movimento quando o lixo sobe, empurra ela para cima na mesma proporção
+    // Se houver peça ativa, empurra ela para cima na mesma proporção
     if (this.state.currentPiece) {
       this.state.currentPiece.y -= count;
 
-      // Se a peça foi empurrada para cima de y = 0 ou colidiu, tenta reposicioná-la para cima
-      while (this.checkCollision(this.state.currentPiece.type, this.state.currentPiece.rotation, this.state.currentPiece.x, this.state.currentPiece.y) && this.state.currentPiece.y > -4) {
+      while (
+        this.checkCollision(
+          this.state.currentPiece.type,
+          this.state.currentPiece.rotation,
+          this.state.currentPiece.x,
+          this.state.currentPiece.y
+        ) && this.state.currentPiece.y > -4
+      ) {
         this.state.currentPiece.y--;
       }
 
-      // Só dá game over se nem mesmo acima da matriz foi possível descolidir (bloqueio total real de topo)
-      if (this.checkCollision(this.state.currentPiece.type, this.state.currentPiece.rotation, this.state.currentPiece.x, this.state.currentPiece.y)) {
+      if (
+        this.checkCollision(
+          this.state.currentPiece.type,
+          this.state.currentPiece.rotation,
+          this.state.currentPiece.x,
+          this.state.currentPiece.y
+        )
+      ) {
         this.state.isGameOver = true;
         this.onSoundTrigger?.('gameover');
       }
@@ -523,6 +584,23 @@ export class TetrisEngine {
     }
 
     this.notify();
+  }
+
+  /**
+   * Reseta a chaminé de lixo quando o jogador limpa linhas (nova oportunidade de escolha).
+   */
+  public resetGarbageChimney() {
+    this.lastGarbageHoleCol = -1;
+    this.garbageChimneyLockCount = 0;
+  }
+
+  /**
+   * Retorna a altura máxima atual da pilha (0 = vazio, ROWS = topo).
+   * Usada pela UI para detectar perigo (> 80% de ROWS).
+   */
+  public getStackHeight(): number {
+    const heights = this.getColumnHeights();
+    return Math.max(...heights);
   }
 
   /**

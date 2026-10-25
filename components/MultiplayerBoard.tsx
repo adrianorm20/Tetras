@@ -31,6 +31,8 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
   const [garbageFlash, setGarbageFlash] = useState(false);
   const [garbageQueue, setGarbageQueue] = useState<{ lines: number; countdown: number }[]>([]);
   const [isShaking, setIsShaking] = useState(false);
+  const [isDanger, setIsDanger] = useState(false);
+  const dangerPulseRef = useRef<number>(0);
 
   // Line flash animation state & floating particles
   const [clearedRowsFlash, setClearedRowsFlash] = useState<number[]>([]);
@@ -217,7 +219,15 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
       });
 
       engine.tick(delta);
-      drawAll();
+
+      // Detecta perigo: pilha >= 80% da altura do tabuleiro
+      dangerPulseRef.current += delta;
+      const stackHeight = engine.getStackHeight();
+      const DANGER_THRESHOLD = Math.floor(ROWS * 0.8);
+      const inDanger = !engine.state.isGameOver && stackHeight >= DANGER_THRESHOLD;
+      setIsDanger(inDanger);
+
+      drawAll(inDanger, dangerPulseRef.current);
       animId = requestAnimationFrame(loop);
     };
 
@@ -288,7 +298,7 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
     };
   }, []);
 
-  const drawAll = useCallback(() => {
+  const drawAll = useCallback((inDanger: boolean = false, pulseTime: number = 0) => {
     const engine = engineRef.current;
     if (!engine) return;
     const matrixCanvas = matrixCanvasRef.current;
@@ -358,6 +368,19 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
     nCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
     for (let i = 0; i < engine.state.nextQueue.length; i++) {
       drawMiniPiece(nCtx, engine.state.nextQueue[i], 50, 30 + i * 58, true);
+    }
+
+    // Danger Pulse — borda vermelha pulsante quando pilha >= 80%
+    if (inDanger) {
+      const pulse = (Math.sin((pulseTime / 300) * Math.PI) + 1) / 2;
+      const alpha = 0.25 + pulse * 0.55;
+      mCtx.save();
+      mCtx.strokeStyle = `rgba(239, 68, 68, ${alpha})`;
+      mCtx.lineWidth = 10;
+      mCtx.shadowColor = `rgba(239, 68, 68, ${alpha})`;
+      mCtx.shadowBlur = 16 + pulse * 16;
+      mCtx.strokeRect(0, 0, matrixCanvas.width, matrixCanvas.height);
+      mCtx.restore();
     }
   }, [clearedRowsFlash]);
 
@@ -495,7 +518,11 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
             className={`relative bg-slate-950/95 border-2 rounded-xl overflow-hidden transition-all duration-150 ${
               isShaking ? 'translate-y-1 animate-pulse' : ''
             } ${
-              garbageFlash ? 'border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.7)]' : 'border-cyan-500/30 shadow-[0_0_20px_rgba(0,242,254,0.15)]'
+              isDanger
+                ? 'border-red-500 shadow-[0_0_35px_rgba(239,68,68,0.7)] animate-[dangerPulse_0.6s_ease-in-out_infinite]'
+                : garbageFlash
+                ? 'border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.7)]'
+                : 'border-cyan-500/30 shadow-[0_0_20px_rgba(0,242,254,0.15)]'
             }`}
           >
             <canvas

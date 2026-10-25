@@ -32,6 +32,8 @@ export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
   const [actionText, setActionText] = useState<string | null>(null);
   const [matchResult, setMatchResult] = useState<MatchEndResult | null>(null);
   const [isSubmittingMatch, setIsSubmittingMatch] = useState(false);
+  const [isDanger, setIsDanger] = useState(false);
+  const dangerPulseRef = useRef<number>(0); // tempo acumulado para animar o pulso
   const matchProcessedRef = useRef(false);
 
   // Key state tracking for smooth DAS/ARR and soft drop timer
@@ -103,6 +105,8 @@ export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
     let animId: number;
     let lastTime = performance.now();
 
+    const DANGER_THRESHOLD = Math.floor(ROWS * 0.8); // 80% de ROWS = perigo
+
     const loop = (currentTime: number) => {
       const delta = currentTime - lastTime;
       lastTime = currentTime;
@@ -120,7 +124,7 @@ export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
           }
         }
       }
-      // Handle Soft Drop com timer fluido controlado (sem disparos incontroláveis de repeat de SO)
+      // Handle Soft Drop com timer fluido controlado
       if (ks.down) {
         ks.softDropTimer += delta;
         if (ks.softDropTimer >= SOFT_DROP_RATE) {
@@ -132,7 +136,14 @@ export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
       }
 
       engine.tick(delta);
-      drawAll();
+
+      // Detecta perigo: pilha acima de 80% da altura total
+      dangerPulseRef.current += delta;
+      const stackHeight = engine.getStackHeight();
+      const inDanger = !engine.state.isGameOver && stackHeight >= DANGER_THRESHOLD;
+      setIsDanger(inDanger);
+
+      drawAll(inDanger, dangerPulseRef.current);
 
       animId = requestAnimationFrame(loop);
     };
@@ -246,7 +257,7 @@ export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
   }, []);
 
   // Drawing Canvas Elements
-  const drawAll = useCallback(() => {
+  const drawAll = useCallback((inDanger: boolean = false, pulseTime: number = 0) => {
     const engine = engineRef.current;
     if (!engine) return;
 
@@ -328,6 +339,21 @@ export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
       const type = engine.state.nextQueue[i];
       const yCenter = 36 + i * 70;
       drawMiniPiece(nCtx, type, 60, yCenter, true);
+    }
+
+    // 4. Danger Pulse — borda vermelha pulsante quando pilha >= 80%
+    if (inDanger) {
+      // Oscila entre 0 e 1 em ~600ms (pulso rápido de emergência)
+      const pulse = (Math.sin((pulseTime / 300) * Math.PI) + 1) / 2;
+      const alpha = 0.25 + pulse * 0.55; // 0.25 a 0.80
+      const borderW = 6;
+      mCtx.save();
+      mCtx.strokeStyle = `rgba(239, 68, 68, ${alpha})`;
+      mCtx.lineWidth = borderW * 2;
+      mCtx.shadowColor = `rgba(239, 68, 68, ${alpha})`;
+      mCtx.shadowBlur = 18 + pulse * 18;
+      mCtx.strokeRect(0, 0, matrixCanvas.width, matrixCanvas.height);
+      mCtx.restore();
     }
   }, []);
 
@@ -533,7 +559,11 @@ export default function TetrisBoard({ onMatchEnd }: TetrisBoardProps) {
 
         {/* Center: Main Tetris Matrix */}
         <div className="relative">
-          <div className="relative bg-slate-950/95 border-2 border-cyan-500/40 rounded-2xl p-1 shadow-[0_0_35px_rgba(0,242,254,0.25)] overflow-hidden">
+          <div className={`relative bg-slate-950/95 border-2 rounded-2xl p-1 overflow-hidden transition-shadow duration-150 ${
+            isDanger
+              ? 'border-red-500 shadow-[0_0_40px_rgba(239,68,68,0.6)] animate-[dangerPulse_0.6s_ease-in-out_infinite]'
+              : 'border-cyan-500/40 shadow-[0_0_35px_rgba(0,242,254,0.25)]'
+          }`}>
             <canvas
               ref={matrixCanvasRef}
               width={300}

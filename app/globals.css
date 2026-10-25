@@ -33,3 +33,13 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 1);
 }
+
+/* Danger Pulse animation — borda vermelha pulsante de emergência */
+@keyframes dangerPulse {
+  0%, 100% {
+    box-shadow: 0 0 30px rgba(239, 68, 68, 0.5), inset 0 0 20px rgba(239, 68, 68, 0.08);
+  }
+  50% {
+    box-shadow: 0 0 55px rgba(239, 68, 68, 0.95), inset 0 0 35px rgba(239, 68, 68, 0.18);
+  }
+}
