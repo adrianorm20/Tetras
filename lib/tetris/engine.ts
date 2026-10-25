@@ -350,6 +350,7 @@ export class TetrisEngine {
       }
     }
 
+    this.state.telemetry.piecesPlaced++;
     this.clearLines(isTSpin);
 
     // Regra Tetr.io: se a peça foi travada sem limpar linhas, o lixo acumulado sobe no tabuleiro
@@ -530,38 +531,48 @@ export class TetrisEngine {
   public tick(deltaMs: number) {
     if (this.state.isGameOver || this.state.isPaused || !this.state.currentPiece) return;
 
-    if (this.startTime) {
-      const elapsedSec = (Date.now() - this.startTime) / 1000;
-      if (elapsedSec > 0.5) {
-        this.state.telemetry.durationSeconds = Math.floor(elapsedSec);
-        this.state.telemetry.pps = parseFloat((this.state.telemetry.piecesPlaced / elapsedSec).toFixed(2));
-        this.state.telemetry.apm = parseFloat(((this.state.telemetry.lines * 1.5) / (elapsedSec / 60)).toFixed(1));
-      }
+    // Inicia o cronômetro na primeira execução real do tick
+    if (!this.startTime) {
+      this.startTime = Date.now();
     }
 
-    // ── CURVA DE GRAVIDADE PROGRESSIVA (ACELERAÇÃO DINÂMICA) ──────────────
-    // Nível inicial (LV 1): 1000ms por queda
-    // Conforme avança em nível e tempo, a gravidade acelera suavemente até um piso desafiador
-    const elapsedMinutes = (this.state.telemetry.durationSeconds || 0) / 60;
-    const currentLevel = this.state.telemetry.level || 1;
+    const elapsedSec = (Date.now() - this.startTime) / 1000;
+    if (elapsedSec > 0.5) {
+      this.state.telemetry.durationSeconds = Math.floor(elapsedSec);
+      this.state.telemetry.pps = parseFloat((this.state.telemetry.piecesPlaced / elapsedSec).toFixed(2));
+      this.state.telemetry.apm = parseFloat(((this.state.telemetry.lines * 1.5) / (elapsedSec / 60)).toFixed(1));
+    }
+
+
+    // ── CURVA DE GRAVIDADE EXTREMAMENTE AGRESSIVA (TETO 4 MINUTOS) ────────
+    // Fórmula baseada em tempo decorrido em milissegundos para aceleração contínua suave.
+    //
+    // Referência de velocidade:
+    //   t=0s   → ~600ms  (moderado desde o início)
+    //   t=30s  → ~430ms  (já perceptível)
+    //   t=60s  → ~280ms  (rápido)
+    //   t=120s → ~120ms  (muito rápido)
+    //   t=180s → ~70ms   (frenético)
+    //   t=240s → ~50ms   (quase impossível — limite humano)
+    //
+    // Para garantir pressão nos primeiros 30s, não há "slow ramp" inicial.
+    // A curva usa decaimento exponencial puro baseado em tempo (ms), com chão mínimo.
+    const elapsedMs = (this.state.telemetry.durationSeconds || 0) * 1000;
 
     let gravitySpeed: number;
 
     if (this.isMultiplayer) {
-      // No Multiplayer competitivo (estilo Tetr.io Versus):
-      // Aceleração agressiva por tempo para evitar partidas infinitas
-      // Base: 900ms, reduz ~80ms por nível e +150ms a cada minuto de partida
-      // Teto mínimo: 110ms
-      const timeFactor = Math.floor(elapsedMinutes * 150);
-      const levelFactor = (currentLevel - 1) * 75;
-      gravitySpeed = Math.max(110, 950 - levelFactor - timeFactor);
+      // Multiplayer: ligeiramente mais agressivo ainda (teto 40ms)
+      // Fórmula: 600 * e^(-elapsedMs / 72000) mas com chão de 40ms
+      // Equivalente a: começa 600ms, cai 63% em ~72s, chega perto do chão em ~3-4min
+      const raw = 600 * Math.exp(-elapsedMs / 72000);
+      gravitySpeed = Math.max(40, Math.round(raw));
     } else {
-      // No Singleplayer (curva de sobrevivência clássica/competitiva):
-      // Nível 1: 1000ms, Nível 5: 600ms, Nível 10: 250ms, Nível 15+: 100ms
-      // Fórmula exponencial suave: 1000 * (0.85 ^ (level - 1)) - aceleração temporal
-      const timeFactor = Math.floor(elapsedMinutes * 40);
-      const curveMs = Math.round(1000 * Math.pow(0.86, currentLevel - 1));
-      gravitySpeed = Math.max(90, curveMs - timeFactor);
+      // Singleplayer: teto 50ms — pressão frenética aos 4 minutos
+      // Fórmula: 600 * e^(-elapsedMs / 80000) com chão de 50ms
+      // ~30s → 380ms | ~60s → 240ms | ~120s → 95ms | ~180s → 37ms→clamped 50ms
+      const raw = 600 * Math.exp(-elapsedMs / 80000);
+      gravitySpeed = Math.max(50, Math.round(raw));
     }
 
     this.state.currentGravityMs = gravitySpeed;
