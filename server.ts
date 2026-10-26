@@ -286,18 +286,21 @@ app.prepare().then(() => {
       return room[manualTargetId];
     }
 
-    if (mode === 'leader') {
-      // Ataca o jogador vivo com maior pontuação
-      return candidates.reduce((prev, curr) => (curr.score > prev.score ? curr : prev), candidates[0]);
-    }
-
     if (mode === 'random') {
       const idx = Math.floor(Math.random() * candidates.length);
       return candidates[idx];
     }
 
-    // Default: líder
-    return candidates.reduce((prev, curr) => (curr.score > prev.score ? curr : prev), candidates[0]);
+    // Modo Líder / Default (Catch-up Mechanism):
+    // No modo de Andares (Lobby Infinito / Torre), foca prioritariamente no jogador
+    // que está no andar mais alto (floor). Em caso de empate de andar, desempata pelo maior score.
+    return candidates.reduce((prev, curr) => {
+      const prevFloor = prev.floor || 1;
+      const currFloor = curr.floor || 1;
+      if (currFloor > prevFloor) return curr;
+      if (currFloor < prevFloor) return prev;
+      return curr.score > prev.score ? curr : prev;
+    }, candidates[0]);
   }
 
   function broadcastRoomState(roomId: string) {

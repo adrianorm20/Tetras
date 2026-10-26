@@ -262,7 +262,14 @@ function resolveTarget(
     return candidates[idx];
   }
 
-  return candidates.reduce((prev, curr) => (curr.score > prev.score ? curr : prev), candidates[0]);
+  // Catch-up Mechanism: Prioriza o jogador no andar mais alto (floor). Em empate, maior pontuação (score).
+  return candidates.reduce((prev, curr) => {
+    const prevFloor = prev.floor || 1;
+    const currFloor = curr.floor || 1;
+    if (currFloor > prevFloor) return curr;
+    if (currFloor < prevFloor) return prev;
+    return curr.score > prev.score ? curr : prev;
+  }, candidates[0]);
 }
 
 function broadcastRoomState(roomId: string) {

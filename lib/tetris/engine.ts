@@ -8,8 +8,9 @@ export class TetrisEngine {
   private lockTimer = 0;
   private isLocking = false;
   private moveResets = 0;
-  private readonly MAX_LOCK_RESETS = 15;
-  private readonly LOCK_DELAY = 500; // 500ms Lock Delay competitivo padrão Tetr.io
+  private readonly MAX_LOCK_RESETS = 15; // Máximo de 15 ações de spin/move após tocar no chão
+  private readonly BASE_LOCK_DELAY = 500; // 500ms Lock Delay base inicial
+  private readonly MIN_LOCK_DELAY = 150;  // 150ms teto mínimo em velocidades extremas
   private startTime: number | null = null;
   private lastMoveWasRotate = false;
   public onStateChange?: (state: TetrisState) => void;
@@ -359,7 +360,20 @@ export class TetrisEngine {
   }
 
   /**
-   * Reseta o Lock Delay sempre que a peça for movida ou rotacionada no chão (fórmula padrão Tetr.io)
+   * Lock Delay Dinâmico: proporcional à velocidade de queda (gravitySpeed).
+   * Reduz de 500ms (gravidade lenta / andares iniciais) até 150ms-200ms em velocidades insanas.
+   */
+  public getDynamicLockDelay(): number {
+    const gravity = this.state.currentGravityMs || 600;
+    // Interpolação suave: gravidade 700ms -> delay 500ms, gravidade <= 50ms -> delay 150ms
+    const ratio = Math.max(0, Math.min(1, (gravity - 50) / (700 - 50)));
+    const dynamicDelay = Math.round(this.MIN_LOCK_DELAY + ratio * (this.BASE_LOCK_DELAY - this.MIN_LOCK_DELAY));
+    return Math.max(this.MIN_LOCK_DELAY, Math.min(this.BASE_LOCK_DELAY, dynamicDelay));
+  }
+
+  /**
+   * Reseta o Lock Delay sempre que a peça for movida ou rotacionada no chão (fórmula padrão Tetr.io),
+   * limitado ao teto máximo de 15 ações para evitar travamento infinito por spam.
    */
   private handlePieceMoved() {
     if (!this.state.currentPiece) return;
@@ -375,8 +389,15 @@ export class TetrisEngine {
     if (onFloor) {
       this.isLocking = true;
       if (this.moveResets < this.MAX_LOCK_RESETS) {
-        this.lockTimer = 0; // Reinicia o timer de 500ms
+        this.lockTimer = 0; // Reinicia o timer dinâmico
         this.moveResets++;
+      } else {
+        // Atingiu o teto de 15 resets: se o timer já ultrapassar o delay dinâmico, trava imediatamente
+        const currentDelay = this.getDynamicLockDelay();
+        if (this.lockTimer >= currentDelay) {
+          this.lockCurrentPiece();
+          this.notify();
+        }
       }
     } else {
       this.isLocking = false;
@@ -744,8 +765,9 @@ export class TetrisEngine {
     if (onFloor) {
       this.isLocking = true;
       this.lockTimer += deltaMs;
-      // Ao esgotar o Lock Delay de 500ms, trava a peça definitivamente
-      if (this.lockTimer >= this.LOCK_DELAY) {
+      // Lock Delay Dinâmico: proporcional à velocidade de queda (500ms até 150ms)
+      const dynamicLockDelay = this.getDynamicLockDelay();
+      if (this.lockTimer >= dynamicLockDelay) {
         this.lockCurrentPiece();
         this.notify();
         return;
