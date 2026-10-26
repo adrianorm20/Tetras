@@ -26,6 +26,8 @@ export interface GameTelemetry {
   apm: number;
   durationSeconds: number;
   currentGravityMs?: number;
+  floor?: number;
+  hp?: number;
 }
 
 export interface TetrisState {
@@ -40,6 +42,10 @@ export interface TetrisState {
   isGameOver: boolean;
   isPaused: boolean;
   currentGravityMs: number;
+  hp: number;
+  maxHp: number;
+  floor: number;
+  floorMode: boolean;
   lastClear: {
     lines: number;
     text: string;

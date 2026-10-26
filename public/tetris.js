@@ -384,14 +384,28 @@ class TetrisGame {
 
   clearLines() {
     let linesCleared = 0;
+    const preservedRows = [];
 
-    for (let r = ROWS - 1; r >= 0; r--) {
-      if (this.grid[r].every(cell => cell !== 0)) {
-        this.grid.splice(r, 1);
-        this.grid.unshift(Array(COLS).fill(0));
+    // Varre todas as linhas de cima para baixo
+    for (let r = 0; r < ROWS; r++) {
+      const row = this.grid[r];
+      const isFull = row.every(cell => cell !== 0);
+      if (isFull) {
         linesCleared++;
-        r++; // Recheck same row index
+      } else {
+        // Preserva cópia independente da linha
+        preservedRows.push([...row]);
       }
+    }
+
+    if (linesCleared > 0) {
+      const emptyRowsCount = ROWS - preservedRows.length;
+      const cleanEmptyRows = Array.from({ length: emptyRowsCount }, () =>
+        Array(COLS).fill(0)
+      );
+
+      // Substitui o grid completo de cima para baixo
+      this.grid = [...cleanEmptyRows, ...preservedRows];
     }
 
     if (linesCleared > 0) {

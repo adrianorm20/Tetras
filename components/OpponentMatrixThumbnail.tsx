@@ -103,7 +103,28 @@ export default function OpponentMatrixThumbnail({
         )}
       </div>
 
-      {/* Stats footer (Score & K.O.s) */}
+      {/* Stats footer (Score & Floor & HP & K.O.s) */}
+      {opponent.hp !== undefined && (
+        <div className="w-full mt-1 px-1">
+          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60">
+            <div
+              className={`h-full transition-all duration-200 ${
+                opponent.hp > 50
+                  ? 'bg-gradient-to-r from-emerald-500 to-green-400'
+                  : opponent.hp > 25
+                  ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
+                  : 'bg-gradient-to-r from-rose-600 to-red-500 animate-pulse'
+              }`}
+              style={{ width: `${Math.max(0, Math.min(100, opponent.hp))}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-[8px] font-mono text-slate-400 mt-0.5">
+            <span className="text-cyan-400 font-bold">{opponent.floor ? `F${opponent.floor}` : ''}</span>
+            <span className={opponent.hp <= 25 ? 'text-rose-400 font-bold' : 'text-slate-300'}>{opponent.hp} HP</span>
+          </div>
+        </div>
+      )}
+
       <div className="w-full flex items-center justify-between text-[9px] font-mono text-slate-400 mt-1 px-1">
         <span>{opponent.isAlive ? `${opponent.score.toLocaleString()} pts` : <span className="text-slate-500">K.O.</span>}</span>
         {(opponent.kos ?? 0) > 0 && (

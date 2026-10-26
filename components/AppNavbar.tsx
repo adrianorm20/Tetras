@@ -38,6 +38,14 @@ export default function AppNavbar() {
         </Link>
 
         <Link
+          href="/floors"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-emerald-300 hover:text-white bg-emerald-950/30 hover:bg-emerald-900/40 border border-emerald-500/40 transition"
+        >
+          <Sparkles size={13} className="text-emerald-400" />
+          <span className="hidden sm:inline">Andares</span>
+        </Link>
+
+        <Link
           href="/multiplayer"
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-fuchsia-300 hover:text-white bg-fuchsia-950/30 hover:bg-fuchsia-900/40 border border-fuchsia-500/40 transition"
         >

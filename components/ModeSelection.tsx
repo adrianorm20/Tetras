@@ -21,7 +21,7 @@ export default function ModeSelection({ onStartSolo }: ModeSelectionProps) {
       </div>
 
       {/* Main Mode Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl">
         {/* Solo Mode Card */}
         <div className="group relative bg-slate-900/80 backdrop-blur-md border border-cyan-500/30 rounded-3xl p-6 flex flex-col justify-between hover:border-cyan-400/80 hover:shadow-[0_0_35px_rgba(0,242,254,0.25)] transition duration-300 overflow-hidden">
           <div className="absolute -right-8 -top-8 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl group-hover:bg-cyan-500/20 transition" />
@@ -69,7 +69,52 @@ export default function ModeSelection({ onStartSolo }: ModeSelectionProps) {
           </button>
         </div>
 
-        {/* Multiplayer Mode Card */}
+        {/* Endless Floors Mode Card */}
+        <div className="group relative bg-slate-900/80 backdrop-blur-md border border-emerald-500/40 rounded-3xl p-6 flex flex-col justify-between hover:border-emerald-400/80 hover:shadow-[0_0_35px_rgba(16,185,129,0.3)] transition duration-300 overflow-hidden ring-1 ring-emerald-500/30">
+          <div className="absolute -right-8 -top-8 w-32 h-32 bg-emerald-500/15 rounded-full blur-2xl group-hover:bg-emerald-500/25 transition" />
+
+          <div>
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-400 via-teal-500 to-cyan-500 flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.4)] mb-5 group-hover:scale-105 transition">
+              <Flame size={28} className="text-slate-950" />
+            </div>
+
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-xl font-black text-white tracking-wider">TORRE ANDARES</h3>
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                NOVO MODO
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-400 font-mono mb-6 leading-relaxed">
+              Multiplayer contínuo sem salas fechadas. Barra de Vida estilo TFT (100 a 0) e velocidade que escala a cada andar alcançado.
+            </p>
+
+            <div className="flex flex-col gap-2 p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 text-[11px] font-mono text-slate-300 mb-6">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Entrada:</span>
+                <span className="text-emerald-400 font-bold">Fila Direta Global</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Sistema de HP:</span>
+                <span className="text-emerald-400 font-bold">100 a 0 estilo TFT</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Dificuldade:</span>
+                <span className="text-amber-400 font-bold">Gravidade por Andar</span>
+              </div>
+            </div>
+          </div>
+
+          <Link
+            href="/floors"
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 hover:brightness-110 text-slate-950 font-black text-sm tracking-widest uppercase flex items-center justify-center gap-2 shadow-[0_0_25px_rgba(16,185,129,0.4)] transition text-center"
+          >
+            <Sparkles size={16} />
+            <span>Subir na Torre</span>
+          </Link>
+        </div>
+
+        {/* Multiplayer Standard Mode Card */}
         <div className="group relative bg-slate-900/80 backdrop-blur-md border border-fuchsia-500/30 rounded-3xl p-6 flex flex-col justify-between hover:border-fuchsia-400/80 hover:shadow-[0_0_35px_rgba(217,70,239,0.25)] transition duration-300 overflow-hidden">
           <div className="absolute -right-8 -top-8 w-32 h-32 bg-fuchsia-500/10 rounded-full blur-2xl group-hover:bg-fuchsia-500/20 transition" />
 
@@ -81,7 +126,7 @@ export default function ModeSelection({ onStartSolo }: ModeSelectionProps) {
             <div className="flex items-center gap-2 mb-1">
               <h3 className="text-xl font-black text-white tracking-wider">MULTIPLAYER</h3>
               <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30">
-                ATÉ 8 PLAYERS
+                SALAS / PVP
               </span>
             </div>
 

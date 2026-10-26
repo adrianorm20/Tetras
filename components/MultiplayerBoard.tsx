@@ -120,7 +120,10 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
         state.matrix,
         state.telemetry.score,
         state.telemetry.lines,
-        !state.isGameOver
+        !state.isGameOver,
+        state.hp,
+        state.maxHp,
+        state.floor
       );
 
       if (state.lastClear && Date.now() - state.lastClear.timestamp < 100) {
@@ -143,7 +146,15 @@ export default function MultiplayerBoard({ multiplayer, username }: MultiplayerB
 
       if (state.isGameOver && !matchProcessedRef.current) {
         matchProcessedRef.current = true;
-        multiplayer.sendMatrixUpdate(state.matrix, state.telemetry.score, state.telemetry.lines, false);
+        multiplayer.sendMatrixUpdate(
+          state.matrix,
+          state.telemetry.score,
+          state.telemetry.lines,
+          false,
+          state.hp,
+          state.maxHp,
+          state.floor
+        );
       }
     };
 

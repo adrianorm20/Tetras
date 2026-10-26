@@ -29,6 +29,9 @@ interface PlayerSession {
   linesReceived: number;
   kos: number;
   lastAttackerId: string | null;
+  hp?: number;
+  maxHp?: number;
+  floor?: number;
 }
 
 const rooms: Record<string, Record<string, PlayerSession>> = {};
@@ -156,7 +159,7 @@ app.prepare().then(() => {
     });
 
     // Atualização de matriz e telemetria do jogador
-    socket.on('update_matrix', ({ matrix, score, lines, isAlive }: { matrix: (PieceType | 0 | 'G')[][]; score: number; lines: number; isAlive: boolean }) => {
+    socket.on('update_matrix', ({ matrix, score, lines, isAlive, hp, maxHp, floor }: { matrix: (PieceType | 0 | 'G')[][]; score: number; lines: number; isAlive: boolean; hp?: number; maxHp?: number; floor?: number }) => {
       if (!currentRoomId || !rooms[currentRoomId] || !rooms[currentRoomId][socket.id]) return;
       const player = rooms[currentRoomId][socket.id];
       const previouslyAlive = player.isAlive;
@@ -164,6 +167,9 @@ app.prepare().then(() => {
       player.score = score;
       player.lines = lines;
       player.isAlive = isAlive;
+      if (hp !== undefined) player.hp = hp;
+      if (maxHp !== undefined) player.maxHp = maxHp;
+      if (floor !== undefined) player.floor = floor;
 
       // Se morreu agora, atribui K.O. ao último atacante
       if (previouslyAlive && !isAlive && player.lastAttackerId && rooms[currentRoomId][player.lastAttackerId]) {
@@ -182,6 +188,9 @@ app.prepare().then(() => {
         linesSent: player.linesSent,
         linesReceived: player.linesReceived,
         kos: player.kos,
+        hp: player.hp,
+        maxHp: player.maxHp,
+        floor: player.floor,
       });
 
       // Se morreu, verifica se a partida acabou (somente 1 sobrevivente)
@@ -306,6 +315,9 @@ app.prepare().then(() => {
       linesSent: p.linesSent,
       linesReceived: p.linesReceived,
       kos: p.kos,
+      hp: p.hp,
+      maxHp: p.maxHp,
+      floor: p.floor,
     }));
 
     io.to(roomId).emit('room_state', {

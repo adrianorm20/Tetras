@@ -17,9 +17,13 @@ export class TetrisEngine {
   public onGarbageSent?: (lines: number, clearType: 'single' | 'double' | 'triple' | 'tetris' | 'combo' | 'tspin' | 'quad') => void;
 
   public isMultiplayer: boolean = false;
+  public floorMode: boolean = false;
+  public onHpDamage?: (currentHp: number, damage: number) => void;
+  public onFloorUp?: (newFloor: number) => void;
 
-  constructor(isMultiplayer: boolean = false) {
+  constructor(isMultiplayer: boolean = false, floorMode: boolean = false) {
     this.isMultiplayer = isMultiplayer;
+    this.floorMode = floorMode;
     this.state = this.getInitialState();
     this.init();
   }
@@ -43,11 +47,17 @@ export class TetrisEngine {
         apm: 0,
         durationSeconds: 0,
         currentGravityMs: 1000,
+        floor: 1,
+        hp: 100,
       },
       incomingGarbage: 0,
       isGameOver: false,
       isPaused: false,
       currentGravityMs: 1000,
+      hp: 100,
+      maxHp: 100,
+      floor: 1,
+      floorMode: this.floorMode,
       lastClear: null,
     };
   }
@@ -103,8 +113,12 @@ export class TetrisEngine {
     this.moveResets = 0;
     this.lastMoveWasRotate = false;
 
-    // Check game over on spawn
+    // Check game over on spawn or handle TFT-style HP penalty
     if (this.checkCollision(newPiece.type, newPiece.rotation, newPiece.x, newPiece.y)) {
+      if (this.floorMode) {
+        this.handleTopOutPenalty();
+        return;
+      }
       this.state.isGameOver = true;
       this.state.currentPiece = newPiece;
       this.state.ghostY = newPiece.y;
@@ -117,6 +131,45 @@ export class TetrisEngine {
     this.state.nextQueue = newNextQueue;
     this.state.canHold = true;
     this.state.ghostY = this.computeGhostY(newPiece);
+    this.notify();
+  }
+
+  /**
+   * Sistema de Vida estilo TFT (100 a 0):
+   * Quando o jogador encosta no topo, sofre penalidade de vida (ex: -20 HP),
+   * o tabuleiro reseta rapidamente como penalidade de queda e o jogo continua
+   * até o HP zerar de fato.
+   */
+  public handleTopOutPenalty(damage: number = 20) {
+    this.takeHpDamage(damage);
+    if (!this.state.isGameOver) {
+      // Limpa o tabuleiro como penalidade rápida e re-spawna peça limpa
+      this.state.matrix = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+      this.state.incomingGarbage = 0;
+      this.isLocking = false;
+      this.lockTimer = 0;
+      this.moveResets = 0;
+      this.dropTimer = 0;
+      this.lastGarbageHoleCol = -1;
+      this.garbageChimneyLockCount = 0;
+      this.onSoundTrigger?.('garbage_rise');
+      this.spawnNextPiece();
+    }
+  }
+
+  /**
+   * Aplica dano à barra de Vida estilo TFT
+   */
+  public takeHpDamage(damage: number) {
+    if (this.state.isGameOver) return;
+    this.state.hp = Math.max(0, this.state.hp - damage);
+    this.state.telemetry.hp = this.state.hp;
+    this.onHpDamage?.(this.state.hp, damage);
+
+    if (this.state.hp <= 0) {
+      this.state.isGameOver = true;
+      this.onSoundTrigger?.('gameover');
+    }
     this.notify();
   }
 
@@ -433,6 +486,16 @@ export class TetrisEngine {
       this.state.telemetry.lines += linesCleared;
       this.state.telemetry.level = Math.floor(this.state.telemetry.lines / 10) + 1;
 
+      // Progressão de Andar (Floor System): Cada 4 linhas limpas sobe 1 andar
+      if (this.floorMode && linesCleared > 0) {
+        const calculatedFloor = Math.floor(this.state.telemetry.lines / 4) + 1;
+        if (calculatedFloor > this.state.floor) {
+          this.state.floor = calculatedFloor;
+          this.state.telemetry.floor = calculatedFloor;
+          this.onFloorUp?.(calculatedFloor);
+        }
+      }
+
       if (this.state.telemetry.combo > 0) {
         clearText += ` + ×${this.state.telemetry.combo} COMBO`;
       }
@@ -576,6 +639,10 @@ export class TetrisEngine {
           this.state.currentPiece.y
         )
       ) {
+        if (this.floorMode) {
+          this.handleTopOutPenalty(25);
+          return;
+        }
         this.state.isGameOver = true;
         this.onSoundTrigger?.('gameover');
       }
@@ -639,7 +706,16 @@ export class TetrisEngine {
 
     let gravitySpeed: number;
 
-    if (this.isMultiplayer) {
+    if (this.floorMode) {
+      // Escalabilidade de Velocidade por Andar (Floor System):
+      // Começa em 700ms no Andar 1 e desce agressivamente:
+      // Andar 1: 700ms | Andar 2: 580ms | Andar 3: 470ms | Andar 5: 310ms | Andar 10+: 70ms - 40ms
+      const floorLevel = Math.max(1, this.state.floor || 1);
+      const floorBase = 700 * Math.pow(0.85, floorLevel - 1);
+      // Também sofre leve influência do tempo de sobrevivência
+      const timeMod = Math.max(0.7, 1 - (elapsedMs / 300000) * 0.3);
+      gravitySpeed = Math.max(40, Math.round(floorBase * timeMod));
+    } else if (this.isMultiplayer) {
       // Multiplayer: ligeiramente mais agressivo ainda (teto 40ms)
       // Fórmula: 600 * e^(-elapsedMs / 72000) mas com chão de 40ms
       // Equivalente a: começa 600ms, cai 63% em ~72s, chega perto do chão em ~3-4min

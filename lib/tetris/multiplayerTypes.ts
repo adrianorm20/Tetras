@@ -14,6 +14,9 @@ export interface OpponentState {
   linesSent?: number;
   linesReceived?: number;
   kos?: number;
+  hp?: number;
+  maxHp?: number;
+  floor?: number;
 }
 
 export interface AttackEvent {

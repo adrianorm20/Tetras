@@ -40,7 +40,15 @@ export interface UseMultiplayerReturn {
   clearRoomClosedMessage: () => void;
   joinRoom: (roomId: string, username: string, isHost?: boolean) => void;
   leaveRoom: () => void;
-  sendMatrixUpdate: (matrix: (PieceType | 0 | 'G')[][], score: number, lines: number, isAlive: boolean) => void;
+  sendMatrixUpdate: (
+    matrix: (PieceType | 0 | 'G')[][],
+    score: number,
+    lines: number,
+    isAlive: boolean,
+    hp?: number,
+    maxHp?: number,
+    floor?: number
+  ) => void;
   sendAttack: (lines: number, type: AttackEvent['type']) => void;
   setTarget: (targetId?: string, strategy?: TargetingStrategy) => void;
   consumeGarbage: () => void;
@@ -167,8 +175,16 @@ export function useMultiplayer(): UseMultiplayerReturn {
   }, []);
 
   const sendMatrixUpdate = useCallback(
-    (matrix: (PieceType | 0 | 'G')[][], score: number, lines: number, isAlive: boolean) => {
-      socketRef.current?.emit('update_matrix', { matrix, score, lines, isAlive });
+    (
+      matrix: (PieceType | 0 | 'G')[][],
+      score: number,
+      lines: number,
+      isAlive: boolean,
+      hp?: number,
+      maxHp?: number,
+      floor?: number
+    ) => {
+      socketRef.current?.emit('update_matrix', { matrix, score, lines, isAlive, hp, maxHp, floor });
     },
     []
   );
